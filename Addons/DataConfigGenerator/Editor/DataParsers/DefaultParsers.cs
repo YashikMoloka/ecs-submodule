@@ -252,7 +252,8 @@ namespace ME.ECS.DataConfigGenerator.DataParsers {
         }
 
     }
-
+    
+#if UNITY_LOCALIZATION
     public struct LocalizationKeyParser : IParser, IDefaultParser {
 
         [System.Serializable]
@@ -304,5 +305,6 @@ namespace ME.ECS.DataConfigGenerator.DataParsers {
         }
 
     }
+#endif
 
 }
