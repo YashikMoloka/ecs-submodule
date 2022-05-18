@@ -75,6 +75,15 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
+        public static IView ReadView(this Entity entity) {
+
+            return Worlds.currentWorld.ReadView(entity);
+
+        }
+
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
         public static void InstantiateView(this Entity entity, IView prefab) {
 
             Worlds.currentWorld.InstantiateView(prefab, entity);
