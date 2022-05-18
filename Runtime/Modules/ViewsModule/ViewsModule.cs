@@ -172,6 +172,16 @@ namespace ME.ECS {
             viewsModule.DestroyAllViews(in entity);
 
         }
+        
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        public IView ReadView(in Entity entity) {
+
+            var viewsModule = this.GetModule<ViewsModule>();
+            return viewsModule.ReadView(in entity);
+
+        }
 
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -765,6 +775,29 @@ namespace ME.ECS.Views {
             entity.Remove<ViewComponent>();
             this.isRequestsDirty = true;
 
+        }
+        
+#if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+#endif
+        public IView ReadView(in Entity entity) {
+
+            if (this.world.isActive == false) return null;
+
+            for (var id = this.list.Length - 1; id >= 0; --id) {
+
+                ref var views = ref this.list.arr[id];
+                var currentViewInstance = views.mainView;
+                if (currentViewInstance == null) continue;
+
+                if (currentViewInstance.entity == entity) {
+
+                    // Entity has dead
+                    return currentViewInstance;
+                }
+
+            }
+            return null;
         }
 
         #if INLINE_METHODS
