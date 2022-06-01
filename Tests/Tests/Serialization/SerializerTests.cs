@@ -1,4 +1,9 @@
-﻿
+﻿#if FIXED_POINT_MATH
+using ME.ECS.Mathematics;
+#else
+using Unity.Mathematics;
+#endif
+
 namespace ME.ECS.Tests {
 
     using Serializer;
@@ -112,6 +117,48 @@ namespace ME.ECS.Tests {
                     NUnit.Framework.Assert.AreEqual(test.buffer.arr[i], testRes.buffer.arr[i]);
 
                 }
+            }
+
+        }
+
+        public struct TestUnmanagedData {
+
+            public int a;
+            public float b;
+            public byte c;
+
+        }
+
+        [NUnit.Framework.TestAttribute]
+        public void UnsafeData() {
+            
+            var source = new TestUnmanagedData() {
+                a = 123,
+                b = 234.567f,
+                c = 125,
+            };
+            var test = new UnsafeData().Set(source);
+
+            byte[] bytes;
+            {
+                var ser = new Serializers();
+                ser.Add(new UnsafeDataSerializer());
+
+                bytes = Serializer.Pack(test, ser);
+                ser.Dispose();
+            }
+            
+            {
+                var ser = new Serializers();
+                ser.Add(new UnsafeDataSerializer());
+
+                var dest = Serializer.Unpack<UnsafeData>(bytes, ser);
+                var comp = dest.Read<TestUnmanagedData>();
+
+                NUnit.Framework.Assert.AreEqual(source.a, comp.a);
+                NUnit.Framework.Assert.AreEqual(source.b, comp.b);
+                NUnit.Framework.Assert.AreEqual(source.c, comp.c);
+
             }
 
         }
@@ -252,8 +299,9 @@ namespace ME.ECS.Tests {
                     //components
                     {
                         ref var sc = ref world.GetStructComponents();
+                        ref var sc2 = ref world.GetNoStateStructComponents();
                         ComponentsInitializerWorld.Setup(e => e.ValidateData<TestStructComponent>());
-                        CoreComponentsInitializer.Init(ref sc);
+                        CoreComponentsInitializer.Init(ref sc, ref sc2);
                         sc.Validate<TestStructComponent>();
                     }
                     //settings
@@ -272,7 +320,7 @@ namespace ME.ECS.Tests {
                 }
             
                 var ent = new Entity("Test Entity");
-                ent.SetPosition(UnityEngine.Vector3.zero);
+                ent.SetPosition(float3.zero);
                 ent.Set(new TestStructComponent());
             
                 world.SaveResetState<TestState>();
@@ -354,7 +402,7 @@ namespace ME.ECS.Tests {
                 ++data.f;
                 
                 var pos = entity.GetPosition();
-                pos += UnityEngine.Vector3.one;
+                pos += (float3)UnityEngine.Vector3.one;
                 entity.SetPosition(pos);
                 
                 if (entity.Has<ME.ECS.Views.ViewComponent>() == false) entity.InstantiateView(this.viewId);

@@ -12,15 +12,11 @@ using System.Collections.Generic;
 using Unity.Jobs;
 
 #if FIXED_POINT_MATH
-using FLOAT2 = ME.ECS.fp2;
-using FLOAT3 = ME.ECS.fp3;
-using FLOAT4 = ME.ECS.fp4;
-using QUATERNION = ME.ECS.fpquaternion;
+using ME.ECS.Mathematics;
+using tfloat = sfloat;
 #else
-using FLOAT2 = UnityEngine.Vector2;
-using FLOAT3 = UnityEngine.Vector3;
-using FLOAT4 = UnityEngine.Vector4;
-using QUATERNION = UnityEngine.Quaternion;
+using Unity.Mathematics;
+using tfloat = System.Single;
 #endif
 
 namespace ME.ECS {
@@ -374,11 +370,11 @@ namespace ME.ECS {
         /// <returns>string to match players</returns>
         public string GetIEEEFloatFixed() {
             
-            var p = new fp3(-0.9150986f, 0f, 0.4032301f);
-            var t = new fp3(0.5726798f, 0f, 0.8197792f);
-            var rotationSpeed = (fp)50f;
-            var deltaTime = (fp)0.04f;
-            var res = (fp3)VecMath.RotateTowards(p, t, deltaTime * rotationSpeed, (fp)0f);
+            var p = new ME.ECS.Mathematics.float3(-0.9150986f, 0f, 0.4032301f);
+            var t = new ME.ECS.Mathematics.float3(0.5726798f, 0f, 0.8197792f);
+            var rotationSpeed = (sfloat)50f;
+            var deltaTime = (sfloat)0.04f;
+            var res = ME.ECS.Mathematics.VecMath.RotateTowards(p, t, deltaTime * rotationSpeed, 0f);
             return res.x.ToStringDec() + res.y.ToStringDec() + res.z.ToStringDec();// + " :: " + res.x + " :: " + res.y + " :: " + res.z;
             
         }
@@ -699,7 +695,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public FLOAT3 GetRandomInSphere(FLOAT3 center, float maxRadius) {
+        public float3 GetRandomInSphere(float3 center, tfloat maxRadius) {
         
             #if WORLD_STATE_CHECK
             if (this.HasStep(WorldStep.LogicTick) == false && this.HasResetState() == true) {
@@ -717,7 +713,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public FLOAT2 GetRandomInCircle(FLOAT2 center, float maxRadius) {
+        public float2 GetRandomInCircle(float2 center, tfloat maxRadius) {
         
             #if WORLD_STATE_CHECK
             if (this.HasStep(WorldStep.LogicTick) == false && this.HasResetState() == true) {
@@ -765,7 +761,7 @@ namespace ME.ECS {
         /// <param name="from">Inclusive</param>
         /// <param name="to">Inclusive</param>
         /// <returns></returns>
-        public float GetRandomRange(float from, float to) {
+        public tfloat GetRandomRange(tfloat from, tfloat to) {
         
             #if WORLD_STATE_CHECK
             if (this.HasStep(WorldStep.LogicTick) == false && this.HasResetState() == true) {
@@ -787,7 +783,7 @@ namespace ME.ECS {
         /// Returns random number 0..1
         /// </summary>
         /// <returns></returns>
-        public float GetRandomValue() {
+        public tfloat GetRandomValue() {
             
             #if WORLD_STATE_CHECK
             if (this.HasStep(WorldStep.LogicTick) == false && this.HasResetState() == true) {
@@ -882,7 +878,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public float GetTime() {
+        public tfloat GetTime() {
         
             return this.GetTimeFromTick(this.GetStateTick());
             
@@ -900,9 +896,9 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public float GetTimeFromTick(Tick tick) {
+        public tfloat GetTimeFromTick(Tick tick) {
 
-            return (float)tick * this.tickTime;
+            return (tfloat)tick * this.tickTime;
 
         }
 
@@ -927,7 +923,7 @@ namespace ME.ECS {
             if (currentTick < targetTick) {
 
                 var delta = targetTick - currentTick;
-                var duration = delta * this.GetTickTime();
+                var duration = (float)(long)delta * this.GetTickTime();
                 return duration > maxSimulationTime ? RewindAsyncState.LongForwardRewind : RewindAsyncState.ShortForwardRewind;
 
             } else {
@@ -959,7 +955,7 @@ namespace ME.ECS {
                     this.statesHistoryModule.PauseStoreStateSinceTick(prevStateTick - cacheSize);
 
                     if (tick <= 0) tick = 1;
-                    this.timeSinceStart = (float)tick * this.GetTickTime();
+                    this.timeSinceStart = (float)((tfloat)tick * this.GetTickTime());
                     this.statesHistoryModule.HardResetTo(tick);
 
                     this.networkModule.SetAsyncMode(true);
@@ -990,7 +986,7 @@ namespace ME.ECS {
 
             {
                 if (tick <= 0) tick = 1;
-                this.timeSinceStart = (float)tick * this.GetTickTime();
+                this.timeSinceStart = (float)((tfloat)tick * this.GetTickTime());
                 
                 var prevState = this.statesHistoryModule.GetStateBeforeTick(tick);
                 if (prevState == null) prevState = this.GetResetState();
@@ -1414,13 +1410,13 @@ namespace ME.ECS {
 
         }
 
-        public ref Entity AddEntity(string name = null) {
+        public ref Entity AddEntity(string name = null, EntityFlag flags = EntityFlag.None) {
 
-            return ref this.AddEntity_INTERNAL(name);
+            return ref this.AddEntity_INTERNAL(name, flags: flags);
 
         }
         
-        private ref Entity AddEntity_INTERNAL(string name = null, bool validate = true) {
+        private ref Entity AddEntity_INTERNAL(string name = null, bool validate = true, EntityFlag flags = EntityFlag.None) {
             
             #if WORLD_STATE_CHECK
             if (this.HasStep(WorldStep.LogicTick) == false && this.HasResetState() == true) {
@@ -1449,6 +1445,14 @@ namespace ME.ECS {
                 });
 
             }
+
+            if ((flags & EntityFlag.OneShot) != 0) {
+
+                entity.SetOneShot<IsEntityOneShot>();
+
+            }
+
+            this.currentState.storage.flags.Set(entity.id, flags);
 
             return ref entity;
 
@@ -2255,9 +2259,7 @@ namespace ME.ECS {
 
             if (deltaTime < 0f) return;
 
-            deltaTime *= this.speed;
-
-            this.UpdateVisualPre(deltaTime);
+            this.UpdateVisualPre(deltaTime * this.speed);
 
         }
 
@@ -2414,7 +2416,7 @@ namespace ME.ECS {
 
             //UnityEngine.Debug.Log("Simulate " + from + " to " + to);
             this.cpf = to - from;
-            var maxTickTime = this.cpf / maxTime;
+            var maxTickTime = (tfloat)(this.cpf / maxTime);
             if (maxTickTime < this.GetTickTime()) maxTickTime = this.GetTickTime();
             var fixedDeltaTime = this.GetTickTime();
             var sw = PoolClass<System.Diagnostics.Stopwatch>.Spawn();
@@ -2902,6 +2904,7 @@ namespace ME.ECS {
             UnityEngine.Profiling.Profiler.BeginSample($"UseLifetimeStep NotifyAllSystemsBelow");
             #endif
 
+            this.UseEntityFlags();
             this.UseLifetimeStep(ComponentLifetime.NotifyAllSystemsBelow, fixedDeltaTime);
 
             #if UNITY_EDITOR

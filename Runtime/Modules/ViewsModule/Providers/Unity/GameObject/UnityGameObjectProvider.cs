@@ -268,7 +268,7 @@ namespace ME.ECS.Views.Providers {
         /// <summary>
         /// Time to get ready this instance to be used again after it has been despawned.
         /// </summary>
-        public virtual float cacheTimeout => this.defaultParameters.useCacheTimeout == true ? this.defaultParameters.cacheTimeout : Worlds.currentWorld.GetTimeFromTick(Worlds.currentWorld.GetModule<ME.ECS.StatesHistory.IStatesHistoryModuleBase>().GetCacheSize());
+        public virtual float cacheTimeout => this.defaultParameters.useCacheTimeout == true ? this.defaultParameters.cacheTimeout : (float)Worlds.currentWorld.GetTimeFromTick(Worlds.currentWorld.GetModule<ME.ECS.StatesHistory.IStatesHistoryModuleBase>().GetCacheSize());
         /// <summary>
         /// Time to despawn view before it has been pooled.
         /// </summary>
@@ -302,8 +302,15 @@ namespace ME.ECS.Views.Providers {
 
         }
 
+        void IView.DoDestroy() {
+
+            this.OnDisconnect();
+
+        }
+
         public virtual void OnInitialize() { }
         public virtual void OnDeInitialize() { }
+        public virtual void OnDisconnect() { }
         public virtual void ApplyState(float deltaTime, bool immediately) { }
         public virtual void OnUpdate(float deltaTime) { }
         public virtual void ApplyPhysicsState(float deltaTime) { }

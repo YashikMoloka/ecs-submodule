@@ -1,5 +1,10 @@
 using System;
+
+#if FIXED_POINT_MATH
+using ME.ECS.Mathematics;
+#else
 using Unity.Mathematics;
+#endif
 
 namespace ME.ECS.Collections {
 
@@ -13,25 +18,25 @@ namespace ME.ECS.Collections {
         public float2 min => this.center - this.extents;
         public float2 max => this.center + this.extents;
 
-        public AABB2D(UnityEngine.Vector2 center, float2 extents) {
+        public AABB2D(float2 center, float2 extents) {
             this.center = center;
             this.extents = extents;
         }
 
         public bool Contains(float2 point) {
-            if (point[0] < this.center[0] - this.extents[0]) {
+            if (point.x < this.center.x - this.extents.x) {
                 return false;
             }
 
-            if (point[0] > this.center[0] + this.extents[0]) {
+            if (point.x > this.center.x + this.extents.x) {
                 return false;
             }
 
-            if (point[1] < this.center[1] - this.extents[1]) {
+            if (point.y < this.center.y - this.extents.y) {
                 return false;
             }
 
-            if (point[1] > this.center[1] + this.extents[1]) {
+            if (point.y > this.center.y + this.extents.y) {
                 return false;
             }
 
@@ -44,15 +49,8 @@ namespace ME.ECS.Collections {
         }
 
         public bool Intersects(AABB2D b) {
-            //bool noOverlap = Min[0] > b.Max[0] ||
-            //                 b.Min[0] > Max[0]||
-            //                 Min[1] > b.Max[1] ||
-            //                 b.Min[1] > Max[1];
-            //
-            //return !noOverlap;
-
-            return math.abs(this.center[0] - b.center[0]) < this.extents[0] + b.extents[0] &&
-                   math.abs(this.center[1] - b.center[1]) < this.extents[1] + b.extents[1];
+            return math.abs(this.center.x - b.center.x) < this.extents.x + b.extents.x &&
+                   math.abs(this.center.y - b.center.y) < this.extents.y + b.extents.y;
         }
 
     }

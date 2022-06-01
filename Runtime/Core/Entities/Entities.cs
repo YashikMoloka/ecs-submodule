@@ -2,6 +2,14 @@
 #define INLINE_METHODS
 #endif
 
+#if FIXED_POINT_MATH
+using ME.ECS.Mathematics;
+using tfloat = sfloat;
+#else
+using Unity.Mathematics;
+using tfloat = System.Single;
+#endif
+
 namespace ME.ECS {
 
     using Collections;
@@ -276,7 +284,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static Entity SetTimer(this in Entity entity, int index, float time) {
+        public static Entity SetTimer(this in Entity entity, int index, tfloat time) {
 
             Worlds.currentWorld.SetTimer(in entity, index, time);
             return entity;
@@ -286,7 +294,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static float ReadTimer(this in Entity entity, int index) {
+        public static tfloat ReadTimer(this in Entity entity, int index) {
 
             return Worlds.currentWorld.ReadTimer(in entity, index);
 
@@ -295,7 +303,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static ref float GetTimer(this in Entity entity, int index) {
+        public static ref tfloat GetTimer(this in Entity entity, int index) {
 
             return ref Worlds.currentWorld.GetTimer(in entity, index);
 
@@ -369,7 +377,8 @@ namespace ME.ECS {
 
                 if (AllComponentTypes<TComponent>.isTag == true) {
 
-                    entity.Set<TComponent>();
+                    TComponent data = default;
+                    entity.Set(data);
 
                 } else {
                     
@@ -452,7 +461,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static Entity Set<TComponent>(this in Entity entity, ComponentLifetime lifetime) where TComponent : struct, IStructComponent {
+        public static Entity Set<TComponent>(this in Entity entity, ComponentLifetime lifetime) where TComponent : unmanaged, IStructComponent {
 
             Worlds.currentWorld.SetData<TComponent>(in entity, lifetime);
             return entity;
@@ -472,7 +481,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static Entity Set<TComponent>(this in Entity entity, in TComponent data, ComponentLifetime lifetime) where TComponent : struct, IStructComponent {
+        public static Entity Set<TComponent>(this in Entity entity, in TComponent data, ComponentLifetime lifetime) where TComponent : unmanaged, IStructComponent {
 
             Worlds.currentWorld.SetData(in entity, in data, lifetime);
             return entity;
@@ -482,7 +491,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static Entity Set<TComponent>(this in Entity entity, in TComponent data, ComponentLifetime lifetime, float customLifetime) where TComponent : struct, IStructComponent {
+        public static Entity Set<TComponent>(this in Entity entity, in TComponent data, ComponentLifetime lifetime, tfloat customLifetime) where TComponent : unmanaged, IStructComponent {
 
             Worlds.currentWorld.SetData(in entity, in data, lifetime, customLifetime);
             return entity;
@@ -614,7 +623,7 @@ namespace ME.ECS {
         #endif
         public static ref Entity Create(string name = null) {
 
-            return ref Worlds.currentWorld.AddEntity(name);
+            return ref Worlds.current.AddEntity(name);
 
         }
 
@@ -623,7 +632,29 @@ namespace ME.ECS {
         #endif
         public Entity(string name) {
 
-            ref var entity = ref Worlds.currentWorld.AddEntity(name);
+            ref var entity = ref Worlds.current.AddEntity(name);
+            this.id = entity.id;
+            this.generation = entity.generation;
+
+        }
+        
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        public Entity(string name, EntityFlag flags) {
+
+            ref var entity = ref Worlds.current.AddEntity(name, flags);
+            this.id = entity.id;
+            this.generation = entity.generation;
+
+        }
+
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        public Entity(EntityFlag flags) {
+
+            ref var entity = ref Worlds.current.AddEntity(null, flags);
             this.id = entity.id;
             this.generation = entity.generation;
 

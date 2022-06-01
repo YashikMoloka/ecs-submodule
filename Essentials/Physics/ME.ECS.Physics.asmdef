@@ -1,0 +1,21 @@
+{
+    "name": "ME.ECS.Physics",
+    "rootNamespace": "",
+    "references": [
+        "ME.ECS",
+        "Unity.Collections",
+        "ME.ECS.FPMath",
+        "Unity.Burst",
+        "Unity.Mathematics",
+        "ME.ECS.IL2CPP"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

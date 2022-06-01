@@ -1,6 +1,5 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using System.Collections.Generic;
+using INLINE = System.Runtime.CompilerServices.MethodImplAttribute;
 
 namespace ME.ECS.Serializer {
 
@@ -9,79 +8,92 @@ namespace ME.ECS.Serializer {
         void OnAfterSerialization();
 
     }
-    
-    public interface ITypeSerializerInherit {
 
-        
-
-    }
+    public interface ITypeSerializerInherit { }
 
     public interface ITypeSerializer {
 
         byte GetTypeValue();
         System.Type GetTypeSerialized();
-        
-        void   Pack(Packer packer, object obj);
+
+        void Pack(Packer packer, object obj);
         object Unpack(Packer packer);
 
     }
 
-    
-    
     public enum TypeValue : byte {
 
-        Null = 200,
-        PackerObject  = 255,
-        Meta          = 254,
-        MetaType      = 253,
+        Null = 199,
+        PackerObject = 255,
+        Meta = 254,
+        MetaType = 253,
         MetaTypeArray = 252,
 
         Boolean = 251,
-        String  = 250,
-        Enum    = 249,
-        Byte    = 248,
-        SByte   = 247,
-        Int16   = 246,
-        Int32   = 245,
-        Int64   = 244,
-        UInt16  = 243,
-        UInt32  = 242,
-        UInt64  = 241,
-        Float   = 240,
-        Double  = 239,
+        String = 250,
+        Enum = 249,
+        Byte = 248,
+        SByte = 247,
+        Int16 = 246,
+        Int32 = 245,
+        Int64 = 244,
+        UInt16 = 243,
+        UInt32 = 242,
+        UInt64 = 241,
+        Float = 240,
+        Double = 239,
 
-        ByteArray   = 238,
+        ByteArray = 238,
         ObjectArray = 237,
         GenericList = 236,
-        
+
         Vector2Int = 235,
         Vector3Int = 234,
-        Vector2    = 233,
-        Vector3    = 232,
-        Vector4    = 231,
+        Vector2 = 233,
+        Vector3 = 232,
+        Vector4 = 231,
         Quaternion = 230,
 
-        Generic     = 229,
+        Generic = 229,
         GenericDictionary = 228,
         GenericULongDictionary = 227,
-		GenericIntDictionary = 226,
-        
-        HistoryEvent  = 225,
-        Char  = 224,
+        GenericIntDictionary = 226,
+
+        HistoryEvent = 225,
+        Char = 224,
         View = 223,
-        
+
         BufferArray = 222,
         DisposeSentinel = 221,
-        FPFloat   = 220,
+        FPFloat = 220,
+
+        Int2 = 219,
+        Int3 = 218,
+        Float2 = 217,
+        Float3 = 216,
+        Float4 = 215,
+        FQuaternion = 214,
+
+        SByteArray = 213,
+        Int16Array = 212,
+        Int32Array = 211,
+        Int64Array = 210,
+        UInt16Array = 209,
+        UInt32Array = 208,
+        UInt64Array = 207,
+        FloatArray = 206,
+        DoubleArray = 205,
         
+        Tick = 204,
+        ViewId = 203,
+        RPCId = 202,
+        NextTickTask = 201,
+        UnsafeData = 200,
+
     }
-    
+
     [System.AttributeUsageAttribute(System.AttributeTargets.Field | System.AttributeTargets.Property)]
-    public class SerializeFieldAttribute : System.Attribute {
-
-        
-
-    }
+    public class SerializeFieldAttribute : System.Attribute { }
 
     public struct Serializers : System.IDisposable {
 
@@ -96,7 +108,7 @@ namespace ME.ECS.Serializer {
                 this.typeValue = serializer.GetTypeValue();
                 this.pack = serializer.Pack;
                 this.unpack = serializer.Unpack;
-                
+
                 return this;
 
             }
@@ -106,7 +118,7 @@ namespace ME.ECS.Serializer {
                 this.typeValue = serializer.GetTypeValue();
                 this.pack = serializer.Pack;
                 this.unpack = serializer.Unpack;
-                
+
                 return this;
 
             }
@@ -115,7 +127,7 @@ namespace ME.ECS.Serializer {
 
         private static Dictionary<int, bool> initialized = new Dictionary<int, bool>();
         private static int idIncrement;
-
+        internal Dictionary<System.Type, int> metaCache;
         private int id;
         private Dictionary<System.Type, Item> serializers;
         private Dictionary<System.Type, Item> serializersBaseType;
@@ -123,54 +135,110 @@ namespace ME.ECS.Serializer {
 
         public void Init(int capacity) {
 
-            if (this.id == 0) this.id = ++Serializers.idIncrement;
-            if (this.serializers == null) this.serializers = PoolDictionary<System.Type, Item>.Spawn(capacity);
-            if (this.serializersBaseType == null) this.serializersBaseType = PoolDictionary<System.Type, Item>.Spawn(capacity);
-            if (this.serializersByTypeValue == null) this.serializersByTypeValue = PoolDictionary<byte, Item>.Spawn(capacity);
-            
-            if (Serializers.initialized.ContainsKey(this.id) == false) Serializers.initialized.Add(this.id, true);
-            
+            if (this.id == 0) {
+                this.id = ++Serializers.idIncrement;
+            }
+
+            if (this.serializers == null) {
+                this.serializers = PoolDictionary<System.Type, Item>.Spawn(capacity);
+            }
+
+            if (this.serializersBaseType == null) {
+                this.serializersBaseType = PoolDictionary<System.Type, Item>.Spawn(capacity);
+            }
+
+            if (this.serializersByTypeValue == null) {
+                this.serializersByTypeValue = PoolDictionary<byte, Item>.Spawn(capacity);
+            }
+
+            if (this.metaCache == null) {
+                this.metaCache = PoolDictionary<System.Type, int>.Spawn(capacity);
+            }
+
+            if (Serializers.initialized.ContainsKey(this.id) == false) {
+                Serializers.initialized.Add(this.id, true);
+            }
+
         }
 
         public void Dispose() {
-            
-            if (Serializers.initialized.TryGetValue(this.id, out var state) == false || state == false) return;
 
-            if (this.serializers != null) PoolDictionary<System.Type, Item>.Recycle(ref this.serializers);
-            if (this.serializersBaseType != null) PoolDictionary<System.Type, Item>.Recycle(ref this.serializersBaseType);
-            if (this.serializersByTypeValue != null) PoolDictionary<byte, Item>.Recycle(ref this.serializersByTypeValue);
-            
+            if (Serializers.initialized.TryGetValue(this.id, out var state) == false || state == false) {
+                return;
+            }
+
+            if (this.serializers != null) {
+                PoolDictionary<System.Type, Item>.Recycle(ref this.serializers);
+            }
+
+            if (this.serializersBaseType != null) {
+                PoolDictionary<System.Type, Item>.Recycle(ref this.serializersBaseType);
+            }
+
+            if (this.serializersByTypeValue != null) {
+                PoolDictionary<byte, Item>.Recycle(ref this.serializersByTypeValue);
+            }
+
+            if (this.metaCache != null) {
+                PoolDictionary<System.Type, int>.Recycle(ref this.metaCache);
+            }
+
             Serializers.initialized.Remove(this.id);
 
         }
-        
+
+        public void AddMeta(System.Type type, int typeId) {
+
+            this.Init(32);
+            this.metaCache.Add(type, typeId);
+
+        }
+
+        [INLINE(256)]
         public void Add(ref Serializers serializers) {
 
-            if (Serializers.initialized.TryGetValue(this.id, out var state) == false || state == false) return;
-            
+            if (Serializers.initialized.TryGetValue(this.id, out var state) == false || state == false) {
+                return;
+            }
+
             this.Init(32);
             serializers.Init(32);
 
-            foreach (var kv in serializers.serializers) {
-                
-                if (this.serializers.ContainsKey(kv.Key) == false) this.serializers.Add(kv.Key, kv.Value);
-                
+            foreach (var kv in serializers.metaCache) {
+
+                if (this.metaCache.ContainsKey(kv.Key) == false) {
+                    this.metaCache.Add(kv.Key, kv.Value);
+                }
+
             }
-            
+
+            foreach (var kv in serializers.serializers) {
+
+                if (this.serializers.ContainsKey(kv.Key) == false) {
+                    this.serializers.Add(kv.Key, kv.Value);
+                }
+
+            }
+
             foreach (var kv in serializers.serializersBaseType) {
-                
-                if (this.serializersBaseType.ContainsKey(kv.Key) == false) this.serializersBaseType.Add(kv.Key, kv.Value);
-                
+
+                if (this.serializersBaseType.ContainsKey(kv.Key) == false) {
+                    this.serializersBaseType.Add(kv.Key, kv.Value);
+                }
+
             }
 
             foreach (var kv in serializers.serializersByTypeValue) {
-                
-                if (this.serializersByTypeValue.ContainsKey(kv.Key) == false) this.serializersByTypeValue.Add(kv.Key, kv.Value);
-                
+
+                if (this.serializersByTypeValue.ContainsKey(kv.Key) == false) {
+                    this.serializersByTypeValue.Add(kv.Key, kv.Value);
+                }
+
             }
 
         }
-        
+
+        [INLINE(256)]
         public void Add<T>(T serializer) where T : struct, ITypeSerializer {
 
             #if UNITY_EDITOR
@@ -179,15 +247,19 @@ namespace ME.ECS.Serializer {
                 throw new System.Exception("Using GenericTypeDefinition for Serializer Type cause crash on Mono Runtime. Do not use it.");
             }
             #endif
-            
+
             this.Init(32);
 
             this.serializers.Add(serializer.GetTypeSerialized(), new Item().Fill(serializer));
-            if (serializer is ITypeSerializerInherit) this.serializersBaseType.Add(serializer.GetTypeSerialized(), new Item().Fill(serializer));
+            if (serializer is ITypeSerializerInherit) {
+                this.serializersBaseType.Add(serializer.GetTypeSerialized(), new Item().Fill(serializer));
+            }
+
             this.serializersByTypeValue.Add(serializer.GetTypeValue(), new Item().Fill(serializer));
 
         }
 
+        [INLINE(256)]
         public void Add(ITypeSerializer serializer) {
 
             #if UNITY_EDITOR
@@ -196,40 +268,49 @@ namespace ME.ECS.Serializer {
                 throw new System.Exception("Using GenericTypeDefinition for Serializer Type cause crash on Mono Runtime. Do not use it.");
             }
             #endif
-            
+
             this.Init(32);
 
             this.serializers.Add(serializer.GetTypeSerialized(), new Item().Fill(serializer));
-            if (serializer is ITypeSerializerInherit) this.serializersBaseType.Add(serializer.GetTypeSerialized(), new Item().Fill(serializer));
+            if (serializer is ITypeSerializerInherit) {
+                this.serializersBaseType.Add(serializer.GetTypeSerialized(), new Item().Fill(serializer));
+            }
+
             this.serializersByTypeValue.Add(serializer.GetTypeValue(), new Item().Fill(serializer));
 
         }
 
+        [INLINE(256)]
         public bool TryGetValue(byte type, out Item serializer) {
 
             return this.serializersByTypeValue.TryGetValue(type, out serializer);
 
         }
 
+        [INLINE(256)]
         public bool TryGetValue(System.Type type, out Item serializer) {
+
+            if (type.IsEnum == true) {
+                type = typeof(System.Enum);
+            }
 
             if (this.serializers.TryGetValue(type, out serializer) == true) {
 
                 return true;
 
             }
-            
+
             foreach (var kv in this.serializersBaseType) {
-                
+
                 if (kv.Key.IsAssignableFrom(type) == true) {
 
                     serializer = kv.Value;
                     return true;
 
                 }
-                
+
             }
-            
+
             return this.serializers.TryGetValue(typeof(GenericSerializer), out serializer);
 
         }
@@ -249,8 +330,9 @@ namespace ME.ECS.Serializer {
 
         public static SerializerMode mode = SerializerMode.SerializableOnlyFields;
 
+        [INLINE(256)]
         public static Serializers GetInternalSerializers() {
-            
+
             var serializers = new Serializers();
             serializers.Add(new PackerObjectSerializer());
             serializers.Add(new MetaSerializer());
@@ -261,31 +343,45 @@ namespace ME.ECS.Serializer {
 
         }
 
+        [INLINE(256)]
         public static Serializers GetDefaultSerializers() {
 
             var serializers = new Serializers();
-            
+
             serializers.Add(new GenericSerializer());
-            
+
             serializers.Add(new ByteSerializer());
             serializers.Add(new SByteSerializer());
-            
-            serializers.Add(new FPSerializer());
-            
             serializers.Add(new FloatSerializer());
             serializers.Add(new DoubleSerializer());
-            
             serializers.Add(new Int16Serializer());
             serializers.Add(new Int32Serializer());
             serializers.Add(new Int64Serializer());
-            
             serializers.Add(new UInt16Serializer());
             serializers.Add(new UInt32Serializer());
             serializers.Add(new UInt64Serializer());
-            
+
             serializers.Add(new BooleanSerializer());
             serializers.Add(new StringSerializer());
             serializers.Add(new EnumSerializer());
+
+            serializers.Add(new FloatArraySerializer());
+            serializers.Add(new DoubleArraySerializer());
+            serializers.Add(new Int16ArraySerializer());
+            serializers.Add(new Int32ArraySerializer());
+            serializers.Add(new Int64ArraySerializer());
+            serializers.Add(new UInt16ArraySerializer());
+            serializers.Add(new UInt32ArraySerializer());
+            serializers.Add(new UInt64ArraySerializer());
+            serializers.Add(new SByteArraySerializer());
+
+            serializers.Add(new ByteArraySerializer());
+            serializers.Add(new ObjectArraySerializer());
+            serializers.Add(new GenericListSerializer());
+            serializers.Add(new GenericDictionarySerializer());
+
+            #if UNITY
+            serializers.Add(new FPSerializer());
 
             serializers.Add(new Vector2IntSerializer());
             serializers.Add(new Vector3IntSerializer());
@@ -293,19 +389,23 @@ namespace ME.ECS.Serializer {
             serializers.Add(new Vector3Serializer());
             serializers.Add(new Vector4Serializer());
             serializers.Add(new QuaternionSerializer());
-
-            serializers.Add(new ByteArraySerializer());
-            serializers.Add(new ObjectArraySerializer());
-            serializers.Add(new GenericListSerializer());
-            serializers.Add(new GenericDictionarySerializer());
             
+            serializers.Add(new Int2Serializer());
+            serializers.Add(new Int3Serializer());
+            serializers.Add(new Float2Serializer());
+            serializers.Add(new Float3Serializer());
+            serializers.Add(new Float4Serializer());
+            serializers.Add(new QuaternionMathSerializer());
+            #endif
+
             return serializers;
 
         }
 
+        [INLINE(256)]
         public static byte[] PackStatic<T>(T obj, Serializers staticSerializers) {
-            
-            var packer = new Packer(staticSerializers, new System.IO.MemoryStream(Serializer.BUFFER_CAPACITY));
+
+            var packer = new Packer(staticSerializers, new SerializerStream(Serializer.BUFFER_CAPACITY));
 
             var serializer = new GenericSerializer();
             serializer.Pack(packer, obj, typeof(T));
@@ -316,6 +416,7 @@ namespace ME.ECS.Serializer {
 
         }
 
+        [INLINE(256)]
         public static T UnpackStatic<T>(byte[] bytes, Serializers staticSerializers) {
 
             var packer = Serializer.SetupDefaultPacker(staticSerializers, bytes);
@@ -327,7 +428,8 @@ namespace ME.ECS.Serializer {
 
         }
 
-        public static byte[] Pack<T>(T obj, System.Type type, Serializers customSerializers) {
+        [INLINE(256)]
+        public static byte[] Pack<T>(T obj, System.Type type, Serializers customSerializers, int capacity = Serializer.BUFFER_CAPACITY) {
 
             var serializersInternal = Serializer.GetInternalSerializers();
             var serializers = Serializer.GetDefaultSerializers();
@@ -336,36 +438,38 @@ namespace ME.ECS.Serializer {
             serializersInternal.Dispose();
             customSerializers.Dispose();
 
-            var packer = new Packer(serializers, new System.IO.MemoryStream(Serializer.BUFFER_CAPACITY));
+            var packer = new Packer(serializers, new SerializerStream(capacity));
 
-            var serializer = new GenericSerializer();
-            serializer.Pack(packer, obj, type);
+            packer.PackInternal(obj, type);
 
             var bytes = packer.ToArray();
-            
+
             serializers.Dispose();
             packer.Dispose();
-            
+
             return bytes;
 
         }
 
+        [INLINE(256)]
         public static byte[] Pack<T>(T obj) {
 
             return Serializer.Pack(obj, obj.GetType(), new Serializers());
 
         }
 
-        public static byte[] Pack<T>(T obj, Serializers customSerializers) {
+        [INLINE(256)]
+        public static byte[] Pack<T>(T obj, Serializers customSerializers, int capacity = Serializer.BUFFER_CAPACITY) {
 
-            return Serializer.Pack(obj, obj.GetType(), customSerializers);
+            return Serializer.Pack(obj, obj.GetType(), customSerializers, capacity);
 
         }
 
-        public static byte[] Pack<T>(Serializers allSerializers, T obj) {
+        [INLINE(256)]
+        public static byte[] Pack<T>(Serializers allSerializers, T obj, int capacity = Serializer.BUFFER_CAPACITY) {
 
             byte[] bytes = null;
-            var packer = new Packer(allSerializers, new System.IO.MemoryStream(Serializer.BUFFER_CAPACITY));
+            var packer = new Packer(allSerializers, new SerializerStream(capacity));
 
             var serializer = new GenericSerializer();
             serializer.Pack(packer, obj, typeof(T));
@@ -377,24 +481,26 @@ namespace ME.ECS.Serializer {
 
         }
 
+        [INLINE(256)]
         public static T Unpack<T>(byte[] bytes) {
 
             return Serializer.Unpack<T>(bytes, new Serializers());
 
         }
 
+        [INLINE(256)]
         public static T Unpack<T>(byte[] bytes, T objectToOverwrite) where T : class {
 
             return Serializer.Unpack<T>(bytes, new Serializers(), objectToOverwrite);
 
         }
 
+        [INLINE(256)]
         public static T Unpack<T>(byte[] bytes, Serializers customSerializers) {
 
             var packer = Serializer.SetupDefaultPacker(bytes, customSerializers);
 
-            var serializer = new GenericSerializer();
-            var instance   = (T)serializer.Unpack(packer, typeof(T));
+            var instance = packer.UnpackInternal<T>();
             customSerializers.Dispose();
             packer.serializers.Dispose();
             packer.Dispose();
@@ -402,20 +508,21 @@ namespace ME.ECS.Serializer {
 
         }
 
+        [INLINE(256)]
         public static T Unpack<T>(Serializers allSerializers, byte[] bytes) {
 
             var packer = Serializer.SetupDefaultPacker(allSerializers, bytes);
 
-            var serializer = new GenericSerializer();
-            var instance   = (T)serializer.Unpack(packer, typeof(T));
+            var instance = packer.UnpackInternal<T>();
             allSerializers.Dispose();
             packer.Dispose();
             return instance;
 
         }
 
+        [INLINE(256)]
         public static T Unpack<T>(byte[] bytes, Serializers customSerializers, T objectToOverwrite) where T : class {
-            
+
             var packer = Serializer.SetupDefaultPacker(bytes, customSerializers);
             new GenericSerializer().Unpack(packer, objectToOverwrite);
             customSerializers.Dispose();
@@ -425,8 +532,9 @@ namespace ME.ECS.Serializer {
 
         }
 
+        [INLINE(256)]
         public static Packer SetupDefaultPacker(byte[] bytes, Serializers customSerializers) {
-            
+
             var serializersInternal = Serializer.GetInternalSerializers();
             var serializers = Serializer.GetDefaultSerializers();
             serializers.Add(ref serializersInternal);
@@ -434,26 +542,90 @@ namespace ME.ECS.Serializer {
             serializersInternal.Dispose();
             customSerializers.Dispose();
 
-            System.IO.MemoryStream stream;
+            SerializerStream stream;
             if (bytes == null) {
-                stream = new System.IO.MemoryStream(Serializer.BUFFER_CAPACITY);
+                stream = new SerializerStream(Serializer.BUFFER_CAPACITY);
             } else {
-                stream = new System.IO.MemoryStream(bytes);
+                stream = new SerializerStream(bytes);
             }
 
             return Packer.FromStream(serializers, stream);
+            
         }
 
+        [INLINE(256)]
         public static Packer SetupDefaultPacker(Serializers allSerializers, byte[] bytes) {
-            
-            System.IO.MemoryStream stream;
+
+            SerializerStream stream;
             if (bytes == null) {
-                stream = new System.IO.MemoryStream(Serializer.BUFFER_CAPACITY);
+                stream = new SerializerStream(Serializer.BUFFER_CAPACITY);
             } else {
-                stream = new System.IO.MemoryStream(bytes);
+                stream = new SerializerStream(bytes);
             }
 
             return Packer.FromStream(allSerializers, stream);
+            
+        }
+
+        [INLINE(256)]
+        public static unsafe void PackBlittable<T>(Packer packer, T data, int size) where T : unmanaged {
+
+            var pos = packer.GetPositionAndMove(size);
+            var buffer = packer.GetBuffer();
+            fixed (byte* ptr = buffer) {
+                *(T*)(ptr + pos) = data;
+            }
+
+        }
+
+        [INLINE(256)]
+        public static unsafe T UnpackBlittable<T>(Packer packer, int size) where T : unmanaged {
+
+            var pos = packer.GetPositionAndMove(size);
+            var buffer = packer.GetBuffer();
+            fixed (byte* ptr = buffer) {
+                return *(T*)(ptr + pos);
+            }
+
+        }
+
+        [INLINE(256)]
+        public static unsafe void PackBlittable<T>(Packer packer, T data) where T : unmanaged {
+
+            Serializer.PackBlittable(packer, data, sizeof(T));
+
+        }
+
+        [INLINE(256)]
+        public static unsafe T UnpackBlittable<T>(Packer packer) where T : unmanaged {
+
+            return Serializer.UnpackBlittable<T>(packer, sizeof(T));
+
+        }
+
+        [INLINE(256)]
+        public static unsafe void PackBlittableArrayPrimitives<T>(Packer packer, T[] arr) where T : unmanaged {
+
+            Int32Serializer.PackDirect(packer, arr.Length);
+            var writeSize = arr.Length * sizeof(T);
+            var pos = packer.GetPositionAndMove(writeSize);
+            var buffer = packer.GetBuffer();
+            System.Buffer.BlockCopy(arr, 0, buffer, pos, writeSize);
+
+        }
+
+        [INLINE(256)]
+        public static unsafe T[] UnpackBlittableArrayPrimitives<T>(Packer packer) where T : unmanaged {
+
+            var length = Int32Serializer.UnpackDirect(packer);
+            var arr = new T[length];
+            var readSize = arr.Length * sizeof(T);
+            var pos = packer.GetPositionAndMove(readSize);
+            var buffer = packer.GetBuffer();
+            System.Buffer.BlockCopy(buffer, pos, arr, 0, readSize);
+
+            return arr;
+
         }
 
     }
@@ -479,6 +651,7 @@ namespace ME.ECS.Serializer {
             internal int metaTypeId;
             internal Dictionary<System.Type, MetaType> meta;
             internal Dictionary<int, System.Type> typeById;
+            internal Dictionary<System.Type, int> idByType;
 
             public static Meta Create() {
 
@@ -486,6 +659,7 @@ namespace ME.ECS.Serializer {
                     metaTypeId = 0,
                     meta = PoolDictionary<System.Type, MetaType>.Spawn(8),
                     typeById = PoolDictionary<int, System.Type>.Spawn(8),
+                    idByType = PoolDictionary<System.Type, int>.Spawn(8),
                 };
 
             }
@@ -494,9 +668,11 @@ namespace ME.ECS.Serializer {
 
                 PoolDictionary<int, System.Type>.Recycle(ref this.typeById);
                 PoolDictionary<System.Type, MetaType>.Recycle(ref this.meta);
+                PoolDictionary<System.Type, int>.Recycle(ref this.idByType);
 
             }
 
+            [INLINE(256)]
             public System.Type GetMetaType(int typeId) {
 
                 this.typeById.TryGetValue(typeId, out var type);
@@ -504,13 +680,24 @@ namespace ME.ECS.Serializer {
 
             }
 
+            [INLINE(256)]
             public bool TryGetValue(System.Type type, out MetaType metaType) {
+
+                if (this.idByType.TryGetValue(type, out var id) == true) {
+                    metaType = new MetaType() { id = id, };
+                    return true;
+                }
 
                 return this.meta.TryGetValue(type, out metaType);
 
             }
 
+            [INLINE(256)]
             public int Add(System.Type type) {
+
+                if (this.idByType.TryGetValue(type, out var id) == true) {
+                    return id;
+                }
 
                 var typeId = new MetaType();
                 typeId.id = ++this.metaTypeId;
@@ -522,37 +709,105 @@ namespace ME.ECS.Serializer {
 
             }
 
+            [INLINE(256)]
+            public void LoadTypes(Dictionary<System.Type, int> serializersMetaCache) {
+                foreach (var kv in serializersMetaCache) {
+                    this.idByType.Add(kv.Key, kv.Value);
+                    this.typeById.Add(kv.Value, kv.Key);
+                }
+            }
+
         }
 
         internal Serializers serializers;
-        private System.IO.MemoryStream stream;
+        private SerializerStream stream;
         private Meta meta;
 
-        public static Packer FromStream(Serializers serializers, System.IO.MemoryStream stream) {
+        [INLINE(256)]
+        public void SetCapacity(int capacity) {
+            this.SetCapacity_INTERNAL(capacity);
+        }
+
+        [INLINE(256)]
+        public void AddCapacity(int capacity) {
+            this.SetCapacity_INTERNAL(this.stream.Position + capacity);
+        }
+
+        [INLINE(256)]
+        private void SetCapacity_INTERNAL(int capacity) {
+
+            if (capacity < this.stream.Capacity) {
+                return;
+            }
+
+            this.stream.Capacity = capacity;
+
+        }
+
+        [INLINE(256)]
+        public void SetPosition(int pointer) {
+            this.stream.Position = pointer;
+        }
+
+        [INLINE(256)]
+        public int GetPosition() {
+            return this.stream.Position;
+        }
+
+        [INLINE(256)]
+        public byte[] GetBuffer() {
+            return this.stream.GetBuffer();
+        }
+
+        [INLINE(256)]
+        public byte[] GetBufferToWrite(int bytes) {
+
+            this.AddCapacity(bytes);
+            return this.stream.GetBuffer();
+
+        }
+
+        [INLINE(256)]
+        public int GetPositionAndMove(int bytes) {
+
+            var pos = this.stream.Position;
+            this.AddCapacity(bytes);
+            this.stream.Position = pos + bytes;
+            return pos;
+
+        }
+
+        public static Packer FromStream(Serializers serializers, SerializerStream stream) {
 
             var packer = new Packer(serializers, stream);
             var packerObject = PackerObjectSerializer.UnpackDirect(packer);
             packer.meta = packerObject.meta;
-            packer.stream = new System.IO.MemoryStream(packerObject.data);
+            packer.stream = new SerializerStream(packerObject.data);
+
+            packer.meta.LoadTypes(serializers.metaCache);
 
             return packer;
 
         }
 
-        public Packer(Serializers serializers, System.IO.MemoryStream stream) {
+        public Packer(Serializers serializers, SerializerStream stream) {
 
             this.meta = Meta.Create();
             this.serializers = serializers;
             this.stream = stream;
 
+            this.meta.LoadTypes(serializers.metaCache);
+
         }
 
+        [INLINE(256)]
         public void Dispose() {
 
             this.meta.Dispose();
 
         }
 
+        [INLINE(256)]
         public byte[] ToArray() {
 
             var obj = new PackerObject();
@@ -560,7 +815,7 @@ namespace ME.ECS.Serializer {
             obj.data = this.stream.ToArray();
 
             byte[] output = null;
-            using (var stream = new System.IO.MemoryStream(this.stream.Capacity)) {
+            using (var stream = new SerializerStream(this.stream.Capacity)) {
 
                 var packer = new Packer(this.serializers, stream);
                 PackerObjectSerializer.PackDirect(packer, obj);
@@ -573,39 +828,66 @@ namespace ME.ECS.Serializer {
 
         }
 
+        [INLINE(256)]
         public System.Type GetMetaType(int typeId) {
 
             if (typeId < 0) {
-                
+
                 var valueType = (TypeValue)(-typeId - 1);
                 switch (valueType) {
-                    
-                    case TypeValue.Int16: return typeof(System.Int16);
-                    case TypeValue.Int32: return typeof(System.Int32);
-                    case TypeValue.Int64: return typeof(System.Int64);
-                    case TypeValue.UInt16: return typeof(System.UInt16);
-                    case TypeValue.UInt32: return typeof(System.UInt32);
-                    case TypeValue.UInt64: return typeof(System.UInt64);
-                    case TypeValue.Byte: return typeof(byte);
-                    case TypeValue.SByte: return typeof(sbyte);
-                    case TypeValue.Float: return typeof(float);
-                    case TypeValue.Double: return typeof(double);
-                    case TypeValue.Boolean: return typeof(bool);
-                    case TypeValue.String: return typeof(string);
-                    case TypeValue.Enum: return typeof(System.Enum);
-                    
+
+                    case TypeValue.Int16:
+                        return typeof(System.Int16);
+
+                    case TypeValue.Int32:
+                        return typeof(System.Int32);
+
+                    case TypeValue.Int64:
+                        return typeof(System.Int64);
+
+                    case TypeValue.UInt16:
+                        return typeof(System.UInt16);
+
+                    case TypeValue.UInt32:
+                        return typeof(System.UInt32);
+
+                    case TypeValue.UInt64:
+                        return typeof(System.UInt64);
+
+                    case TypeValue.Byte:
+                        return typeof(byte);
+
+                    case TypeValue.SByte:
+                        return typeof(sbyte);
+
+                    case TypeValue.Float:
+                        return typeof(float);
+
+                    case TypeValue.Double:
+                        return typeof(double);
+
+                    case TypeValue.Boolean:
+                        return typeof(bool);
+
+                    case TypeValue.String:
+                        return typeof(string);
+
+                    case TypeValue.Enum:
+                        return typeof(System.Enum);
+
                 }
-                
+
             }
-            
+
             return this.meta.GetMetaType(typeId);
 
         }
 
+        [INLINE(256)]
         public int GetMetaTypeId(System.Type type) {
 
             var isPrimitive = false;
-            int pValue = 0;
+            var pValue = 0;
             if (type == typeof(System.Int16)) {
 
                 isPrimitive = true;
@@ -679,7 +961,7 @@ namespace ME.ECS.Serializer {
                 return pValue;
 
             }
-            
+
             if (this.meta.TryGetValue(type, out var typeId) == true) {
 
                 return typeId.id;
@@ -690,32 +972,51 @@ namespace ME.ECS.Serializer {
 
         }
 
+        [INLINE(256)]
         public byte ReadByte() {
 
-            return (byte)this.stream.ReadByte();
+            return this.stream.ReadByte();
 
         }
 
+        [INLINE(256)]
         public void ReadBytes(byte[] output) {
 
             this.stream.Read(output, 0, output.Length);
 
         }
 
+        [INLINE(256)]
+        public void ReadBytes(byte[] output, int length) {
+
+            this.stream.Read(output, 0, length);
+
+        }
+
+        [INLINE(256)]
         public void WriteByte(byte @byte) {
 
             this.stream.WriteByte(@byte);
-            
+
         }
 
+        [INLINE(256)]
         public void WriteBytes(byte[] bytes) {
 
             this.stream.Write(bytes, 0, bytes.Length);
-            
+
         }
 
+        [INLINE(256)]
+        public void WriteBytes(byte[] bytes, int length) {
+
+            this.stream.Write(bytes, 0, length);
+
+        }
+
+        [INLINE(256)]
         public void PackInternal<T>(T root) {
-            
+
             if (root == null) {
 
                 this.WriteByte((byte)TypeValue.Null);
@@ -724,11 +1025,12 @@ namespace ME.ECS.Serializer {
             }
 
             this.PackInternal(root, typeof(T));
-            
+
         }
 
+        [INLINE(256)]
         public void PackInternal<T>(T root, System.Type rootType) {
-            
+
             if (this.serializers.TryGetValue(rootType, out var serializer) == true) {
 
                 this.WriteByte(serializer.typeValue);
@@ -737,22 +1039,22 @@ namespace ME.ECS.Serializer {
             } else {
 
                 if (rootType.IsArray == true) {
-                    
+
                     // Custom array type
-                    
+
                     return;
 
                 }
-                
+
                 if (rootType.IsPrimitive == true || rootType.IsArray == true) {
 
-                    Debug.LogError("Pack type has failed: " + rootType);
+                    UnityEngine.Debug.LogError("Pack type has failed: " + rootType);
                     return;
 
                 }
 
                 var fields = rootType.GetCachedFields();
-                for (int i = 0; i < fields.Length; ++i) {
+                for (var i = 0; i < fields.Length; ++i) {
 
                     var val = fields[i].GetValue(root);
                     var type = fields[i].GetFieldType();
@@ -770,9 +1072,10 @@ namespace ME.ECS.Serializer {
                 }
 
             }
-            
+
         }
 
+        [INLINE(256)]
         public void PackInternal(object root) {
 
             if (root == null) {
@@ -781,14 +1084,20 @@ namespace ME.ECS.Serializer {
                 return;
 
             }
-            
+
             var rootType = root.GetType();
             this.PackInternal(root, rootType);
 
         }
 
+        [INLINE(256)]
+        public void UnpackInternal<T>(out T obj) {
+            obj = this.UnpackInternal<T>();
+        }
+
+        [INLINE(256)]
         public T UnpackInternal<T>() {
-            
+
             T obj = default;
             var type = this.ReadByte();
             if (type == (byte)TypeValue.Null) {
@@ -796,7 +1105,7 @@ namespace ME.ECS.Serializer {
                 return default;
 
             }
-            
+
             if (this.serializers.TryGetValue(type, out var ser) == true) {
 
                 obj = (T)ser.unpack.Invoke(this);
@@ -808,18 +1117,19 @@ namespace ME.ECS.Serializer {
 
             } else {
 
-                Debug.LogWarning("Unknown type: " + type);
+                UnityEngine.Debug.LogWarning("Unknown type: " + type);
 
             }
 
             return obj;
-            
+
         }
 
+        [INLINE(256)]
         public object UnpackInternal() {
 
             return this.UnpackInternal<object>();
-            
+
         }
 
     }

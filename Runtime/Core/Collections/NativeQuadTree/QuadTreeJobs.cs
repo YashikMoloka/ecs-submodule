@@ -1,7 +1,14 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
+
+#if FIXED_POINT_MATH
+using ME.ECS.Mathematics;
+using tfloat = sfloat;
+#else
 using Unity.Mathematics;
+using tfloat = System.Single;
+#endif
 
 namespace ME.ECS.Collections {
 
@@ -19,13 +26,13 @@ namespace ME.ECS.Collections {
 
         }
 
-        public static void GetResults(in UnityEngine.Vector2 position, float radius, Unity.Collections.NativeList<QuadElement<Entity>> results) {
+        public static void GetResults(in float2 position, tfloat radius, Unity.Collections.NativeList<QuadElement<Entity>> results) {
 
             NativeQuadTreeUtils<Entity>.GetResults(position, radius, results);
 
         }
 
-        public static void GetResults(in UnityEngine.Vector2 position, UnityEngine.Vector2 size, Unity.Collections.NativeList<QuadElement<Entity>> results) {
+        public static void GetResults(in float2 position, float2 size, Unity.Collections.NativeList<QuadElement<Entity>> results) {
 
             NativeQuadTreeUtils<Entity>.GetResults(position, size, results);
 
@@ -60,14 +67,14 @@ namespace ME.ECS.Collections {
 
         }
 
-        public static void GetResults(in float2 position, float radius, Unity.Collections.NativeList<QuadElement<T>> results) {
+        public static void GetResults(in float2 position, tfloat radius, Unity.Collections.NativeList<QuadElement<T>> results) {
 
             if (NativeQuadTreeUtils<T>.tempTree.isCreated == false) {
                 throw new System.Exception("Temp tree collection has been disposed");
             }
             new QuadTreeJobs.QueryRadiusJob<T>() {
                 quadTree = NativeQuadTreeUtils<T>.tempTree,
-                bounds = new AABB2D(position, new Unity.Mathematics.float2(radius, radius)),
+                bounds = new AABB2D(position, new float2(radius, radius)),
                 radius = radius,
                 results = results,
             }.Schedule(NativeQuadTreeUtils<T>.jobHandle).Complete();
@@ -124,7 +131,7 @@ namespace ME.ECS.Collections {
 
             public NativeQuadTree<T> quadTree;
             public AABB2D bounds;
-            public float radius;
+            public tfloat radius;
             public NativeList<QuadElement<T>> results;
 
             public void Execute() {

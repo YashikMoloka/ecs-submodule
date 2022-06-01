@@ -1,7 +1,14 @@
 using System;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+
+#if FIXED_POINT_MATH
+using ME.ECS.Mathematics;
+using tfloat = sfloat;
+#else
 using Unity.Mathematics;
+using tfloat = System.Single;
+#endif
 
 namespace ME.ECS.Collections {
 
@@ -12,7 +19,7 @@ namespace ME.ECS.Collections {
             private NativeQuadTree<T> tree;
             private int count;
             private AABB2D bounds;
-            private float radiusSqr;
+            private tfloat radiusSqr;
             private bool checkRadius;
 
             public void Query(NativeQuadTree<T> tree, in AABB2D bounds, NativeList<QuadElement<T>> results) {
@@ -30,7 +37,7 @@ namespace ME.ECS.Collections {
                 //this.fastResults->Length = this.count;
             }
 
-            public void RadiusQuery(NativeQuadTree<T> tree, in AABB2D bounds, float radius, NativeList<QuadElement<T>> results) {
+            public void RadiusQuery(NativeQuadTree<T> tree, in AABB2D bounds, tfloat radius, NativeList<QuadElement<T>> results) {
                 
                 this.tree = tree;
                 this.bounds = bounds;

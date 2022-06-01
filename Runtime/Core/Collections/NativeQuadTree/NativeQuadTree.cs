@@ -1,7 +1,14 @@
 ﻿using System;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+
+#if FIXED_POINT_MATH
+using ME.ECS.Mathematics;
+using tfloat = sfloat;
+#else
 using Unity.Mathematics;
+using tfloat = System.Single;
+#endif
 
 namespace ME.ECS.Collections {
 
@@ -199,7 +206,7 @@ namespace ME.ECS.Collections {
             new QuadTreeRangeQuery().Query(this, bounds, results);
         }
 
-        public void RangeRadiusQuery(AABB2D bounds, float radius, NativeList<QuadElement<T>> results) {
+        public void RangeRadiusQuery(AABB2D bounds, tfloat radius, NativeList<QuadElement<T>> results) {
             #if ENABLE_UNITY_COLLECTIONS_CHECKS
             AtomicSafetyHandle.CheckReadAndThrow(this.safetyHandle);
             #endif

@@ -1,4 +1,6 @@
-﻿namespace ME.ECS.Collections {
+﻿using ME.ECS.Mathematics;
+
+namespace ME.ECS.Collections {
 
     using System.Collections.Generic;
 
@@ -12,7 +14,7 @@
 
         private struct Node {
 
-            public float priority;
+            public sfloat priority;
             public T @object;
 
         }
@@ -50,7 +52,7 @@
         /// </summary>
         /// <param name="priority"></param>
         /// <param name="obj"></param>
-        public void Enqueue(float priority, T obj) {
+        public void Enqueue(sfloat priority, T obj) {
             var node = new Node() { priority = priority, @object = obj };
             this.queue.Add(node);
             this.heapSize++;
@@ -195,7 +197,7 @@
 
         private struct Node {
 
-            public fp priority;
+            public sfloat priority;
             public T @object;
 
         }
@@ -238,7 +240,7 @@
         /// </summary>
         /// <param name="priority"></param>
         /// <param name="obj"></param>
-        public void Enqueue(float priority, T obj) {
+        public void Enqueue(sfloat priority, T obj) {
             var node = new Node() { priority = priority, @object = obj };
             this.queue.Add(node);
             this.heapSize++;

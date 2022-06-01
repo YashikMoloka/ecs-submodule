@@ -1,6 +1,14 @@
 ﻿#if STATES_HISTORY_MODULE_SUPPORT
 using System.Collections.Generic;
 
+#if FIXED_POINT_MATH
+using ME.ECS.Mathematics;
+using tfloat = sfloat;
+#else
+using Unity.Mathematics;
+using tfloat = System.Single;
+#endif
+
 namespace ME.ECS {
     
     public partial interface IWorldBase {
@@ -278,8 +286,8 @@ namespace ME.ECS.StatesHistory {
         private Dictionary<Tick, Dictionary<int, int>> syncHashTable;
         
         private bool prewarmed;
-        private int beginAddEventsCount;
-        private bool beginAddEvents;
+        //private int beginAddEventsCount;
+        //private bool beginAddEvents;
         private int statEventsAdded;
         private int statPlayedEvents;
         private Tick oldestTick;
@@ -296,8 +304,8 @@ namespace ME.ECS.StatesHistory {
             this.pauseStoreStateSinceTick = Tick.Invalid;
             
             this.prewarmed = false;
-            this.beginAddEventsCount = 0;
-            this.beginAddEvents = false;
+            //this.beginAddEventsCount = 0;
+            //this.beginAddEvents = false;
             this.statEventsAdded = 0;
             this.statPlayedEvents = 0;
             
@@ -314,8 +322,8 @@ namespace ME.ECS.StatesHistory {
             this.eventRunner = default;
 
             this.prewarmed = false;
-            this.beginAddEventsCount = 0;
-            this.beginAddEvents = false;
+            //this.beginAddEventsCount = 0;
+            //this.beginAddEvents = false;
             this.statEventsAdded = 0;
             this.statPlayedEvents = 0;
             this.oldestTick = Tick.Invalid;
@@ -501,9 +509,9 @@ namespace ME.ECS.StatesHistory {
 
         public void BeginAddEvents() {
 
-            this.beginAddEventsCount = 0;
+            //this.beginAddEventsCount = 0;
             //this.beginAddEventsTick = this.currentTick;
-            this.beginAddEvents = true;
+            //this.beginAddEvents = true;
 
         }
 
@@ -526,7 +534,7 @@ namespace ME.ECS.StatesHistory {
 
             }*/
             
-            this.beginAddEvents = false;
+            //this.beginAddEvents = false;
             
         }
 
@@ -658,7 +666,7 @@ namespace ME.ECS.StatesHistory {
 
             this.oldestTick = (this.oldestTick == Tick.Invalid || historyEvent.tick < this.oldestTick ? (Tick)historyEvent.tick : this.oldestTick);
             
-            ++this.beginAddEventsCount;
+            //++this.beginAddEventsCount;
             
             /*
             if (this.currentTick >= historyEvent.tick) {
@@ -870,8 +878,8 @@ namespace ME.ECS.StatesHistory {
 
         public Tick GetTickByTime(double seconds) {
 
-            var tick = (seconds / this.world.GetTickTime());
-            return System.Math.Floor(tick);
+            var tick = (seconds / (float)this.world.GetTickTime());
+            return (Tick)math.floor((float)tick);
 
         }
 
