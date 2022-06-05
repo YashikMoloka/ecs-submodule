@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
+using ME.ECS;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
+using ME.ECS.Mathematics;
 using UnityEngine.Assertions;
 using static ME.ECS.Essentials.Physics.Math;
-
-using ME.ECS.Mathematics;
 
 namespace ME.ECS.Essentials.Physics
 {
@@ -112,7 +112,7 @@ namespace ME.ECS.Essentials.Physics
                 for (int i = 0; i < rangeLength; i++)
                 {
                     runningAabb.Include(Aabbs[p[i].Index]);
-                    scores[i] = (sfloat)(i + 1) * runningAabb.SurfaceArea;
+                    scores[i] = (i + 1) * runningAabb.SurfaceArea;
                 }
 
                 runningAabb = Aabb.Empty;
@@ -120,7 +120,7 @@ namespace ME.ECS.Essentials.Physics
                 for (int i = rangeLength - 1, j = 1; i > 0; --i, ++j)
                 {
                     runningAabb.Include(Aabbs[p[i].Index]);
-                    sfloat sum = scores[i - 1] + (sfloat)j * runningAabb.SurfaceArea;
+                    sfloat sum = scores[i - 1] + j * runningAabb.SurfaceArea;
                     if (sum < minScore)
                     {
                         pivot = i;
@@ -139,11 +139,11 @@ namespace ME.ECS.Essentials.Physics
                     ScratchPointsY = new NativeArray<float4>(Aabbs.Length, Allocator.Temp);
                     ScratchPointsZ = new NativeArray<float4>(Aabbs.Length, Allocator.Temp);
                 }
-                
-                // This code relies on range.length always being less than or equal to the number of primitives, which 
+
+                // This code relies on range.length always being less than or equal to the number of primitives, which
                 // happens to be Aabbs.length.  If that ever becomes not true then scratch memory size should be increased.
-                Assert.IsTrue(range.Length <= ScratchScores.Length/*, "Aabbs.Length isn't a large enough scratch memory size for SegregateSah3"*/);
-                
+                Assert.IsTrue(range.Length <= ScratchScores.Length /*, "Aabbs.Length isn't a large enough scratch memory size for SegregateSah3"*/);
+
                 float4* p = PointsAsFloat4 + range.Start;
 
                 for (int i = 0; i < range.Length; i++)
@@ -154,7 +154,7 @@ namespace ME.ECS.Essentials.Physics
                 }
 
                 int bestAxis = -1, pivot = -1;
-                sfloat minScore = sfloat.MaxValue;
+                sfloat minScore = float.MaxValue;
 
                 ProcessAxis(range.Length, 0, ScratchScores, ScratchPointsX, ref bestAxis, ref pivot, ref minScore);
                 ProcessAxis(range.Length, 1, ScratchScores, ScratchPointsY, ref bestAxis, ref pivot, ref minScore);
@@ -195,10 +195,9 @@ namespace ME.ECS.Essentials.Physics
                 }
             }
 
-
             void Segregate(int axis, sfloat pivot, Range range, int minItems, ref Range lRange, ref Range rRange)
             {
-                Assert.IsTrue(range.Length > 1/*, "Range length must be greater than 1."*/);
+                Assert.IsTrue(range.Length > 1 /*, "Range length must be greater than 1."*/);
 
                 Aabb lDomain = Aabb.Empty;
                 Aabb rDomain = Aabb.Empty;
@@ -228,7 +227,8 @@ namespace ME.ECS.Essentials.Physics
                     rDomain.Include((*start).xyz);
 
                     Swap(ref *(start++), ref *(end--));
-                } while (true);
+                }
+                while (true);
             FINISHED:
                 // Build sub-ranges.
                 int lSize = (int)(start - p);
@@ -325,8 +325,9 @@ namespace ME.ECS.Essentials.Physics
                     hasLeftOvers = 0;
                     CreateChildren(subRanges, numSubRanges, range.Root, ref freeNodeIndex, &range, ref hasLeftOvers);
 
-                    Assert.IsTrue(hasLeftOvers <= 1/*, "Internal error"*/);
-                } while (hasLeftOvers > 0);
+                    Assert.IsTrue(hasLeftOvers <= 1 /*, "Internal error"*/);
+                }
+                while (hasLeftOvers > 0);
             }
 
             public void ProcessLargeRange(Range range, Range* subRanges)
@@ -555,7 +556,6 @@ namespace ME.ECS.Essentials.Physics
             m_NodeFilters[nodeIndex] = combinedFilter;
         }
 
-
         public unsafe void Refit(NativeArray<Aabb> aabbs, int nodeStartIndex, int nodeEndIndex)
         {
             Node* baseNode = m_Nodes;
@@ -696,7 +696,8 @@ namespace ME.ECS.Essentials.Physics
                 level0Size = level1Size;
                 level1Size = 0;
                 smallRangeThreshold = largestAllowedRange;
-            } while (level0Size < Constants.MaxNumTreeBranches && largestRangeInLastLevel > largestAllowedRange);
+            }
+            while (level0Size < Constants.MaxNumTreeBranches && largestRangeInLastLevel > largestAllowedRange);
 
             RangeSizeAndIndex* rangeMapBySize = stackalloc RangeSizeAndIndex[Constants.MaxNumTreeBranches];
 
@@ -824,8 +825,8 @@ namespace ME.ECS.Essentials.Physics
         [BurstCompile]
         internal unsafe struct FinalizeTreeJob : IJob
         {
-            [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<Aabb> Aabbs;
-            [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<int> BranchNodeOffsets;
+            [ReadOnly][DeallocateOnJobCompletion] public NativeArray<Aabb> Aabbs;
+            [ReadOnly][DeallocateOnJobCompletion] public NativeArray<int> BranchNodeOffsets;
             [ReadOnly] public NativeArray<CollisionFilter> LeafFilters;
             [ReadOnly] public NativeArray<int> ShouldDoWork;
             [NativeDisableUnsafePtrRestriction]
@@ -833,7 +834,7 @@ namespace ME.ECS.Essentials.Physics
             [NativeDisableUnsafePtrRestriction]
             public CollisionFilter* NodeFilters;
             public int NumNodes;
-            [DeallocateOnJobCompletion] [ReadOnly] public NativeArray<int> OldBranchCount;
+            [DeallocateOnJobCompletion][ReadOnly] public NativeArray<int> OldBranchCount;
             public NativeArray<int> BranchCount;
 
             public void Execute()
@@ -847,7 +848,7 @@ namespace ME.ECS.Essentials.Physics
 
                 int minBranchNodeIndex = BranchNodeOffsets[0] - 1;
                 int branchCount = BranchCount[0];
-                for (int i = 1; i < branchCount; i++)
+                for (int i = 1; i < BranchCount[0]; i++)
                 {
                     minBranchNodeIndex = math.min(BranchNodeOffsets[i] - 1, minBranchNodeIndex);
                 }

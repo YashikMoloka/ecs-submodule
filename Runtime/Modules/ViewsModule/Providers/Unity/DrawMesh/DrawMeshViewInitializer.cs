@@ -8,9 +8,20 @@ namespace ME.ECS.Views.Providers {
             
             if (this.view != null) {
                 var viewId = world.RegisterViewSource(this.view);
-                entity.AssignView(viewId, this.destroyViewBehaviour);
+                // For DrawMeshProvider there is no AssignView method
+                // TODO: Make AssignView common for all providers
+                entity.InstantiateView(viewId);
+                world.UnRegisterViewSource(this.view.GetSource());
             }
             
+        }
+
+        public override void OnValidate() {
+            
+            base.OnValidate();
+
+            if (this.view == null) this.view = this.GetComponent<DrawMeshViewSourceBase>();
+
         }
 
     }

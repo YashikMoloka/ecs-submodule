@@ -1,13 +1,12 @@
 using System;
+using ME.ECS;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Entities;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
-
-using ME.ECS;
 using ME.ECS.Mathematics;
 using static ME.ECS.Essentials.Physics.Math;
+using Unity.Jobs.LowLevel.Unsafe;
 
 namespace ME.ECS.Essentials.Physics
 {
@@ -29,7 +28,7 @@ namespace ME.ECS.Essentials.Physics
         public NativeArray<RigidBody> DynamicBodies => m_Bodies.GetSubArray(0, NumDynamicBodies);
 
         // Contacts are always created between rigid bodies if they are closer than this distance threshold.
-        public sfloat CollisionTolerance => sfloat.FromRaw(0x3a83126f); // todo - make this configurable?
+        public sfloat CollisionTolerance => 0.1f; // todo - make this configurable?
 
         // Construct a collision world with the given number of uninitialized rigid bodies
         public CollisionWorld(int numStaticBodies, int numDynamicBodies)
@@ -113,9 +112,9 @@ namespace ME.ECS.Essentials.Physics
         }
 
         // Schedule a set of jobs to build the broadphase based on the given world.
-        public readonly JobHandle ScheduleBuildBroadphaseJobs(in PhysicsWorld world, sfloat timeStep, float3 gravity, NativeArray<int> buildStaticTree, JobHandle inputDeps, bool multiThreaded = true)
+        public JobHandle ScheduleBuildBroadphaseJobs(ref PhysicsWorld world, sfloat timeStep, float3 gravity, NativeArray<int> buildStaticTree, JobHandle inputDeps, bool multiThreaded = true)
         {
-            return Broadphase.ScheduleBuildJobs(in world, timeStep, gravity, buildStaticTree, inputDeps, multiThreaded);
+            return Broadphase.ScheduleBuildJobs(ref world, timeStep, gravity, buildStaticTree, inputDeps, multiThreaded);
         }
 
         // Write all overlapping body pairs to the given streams,
@@ -143,14 +142,8 @@ namespace ME.ECS.Essentials.Physics
             }
 
             // Update broadphase
-            sfloat aabbMargin = world.CollisionWorld.CollisionTolerance * (sfloat)0.5f;
+            sfloat aabbMargin = world.CollisionWorld.CollisionTolerance * 0.5f;
             Broadphase.BuildDynamicTree(world.DynamicBodies, world.MotionVelocities, gravity, timeStep, aabbMargin);
-        }
-
-        [Obsolete("ScheduleUpdateDynamicTree() has been deprecated. Please use the new method taking a bool as the last parameter. (RemovedAfter 2021-02-15)", true)]
-        public JobHandle ScheduleUpdateDynamicTree(ref PhysicsWorld world, sfloat timeStep, float3 gravity, JobHandle inputDeps, int threadCountHint = 0)
-        {
-            return ScheduleUpdateDynamicTree(ref world, timeStep, gravity, inputDeps, threadCountHint > 0);
         }
 
         // Schedule a set of jobs to synchronize the collision world with the dynamics world.
@@ -176,7 +169,7 @@ namespace ME.ECS.Essentials.Physics
 
                 // Update broadphase
                 // Thread count is +1 for main thread
-                return Broadphase.ScheduleDynamicTreeBuildJobs(in world, timeStep, gravity, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount + 1, handle);
+                return Broadphase.ScheduleDynamicTreeBuildJobs(ref world, timeStep, gravity, JobsUtility.JobWorkerCount + 1, handle);
             }
         }
 

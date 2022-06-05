@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-
 using ME.ECS.Mathematics;
 
 namespace ME.ECS.Essentials.Physics
@@ -65,7 +64,7 @@ namespace ME.ECS.Essentials.Physics
         {
             get
             {
-                fixed (BlobArray* blob = &m_BvhNodesBlob)
+                fixed(BlobArray* blob = &m_BvhNodesBlob)
                 {
                     var firstNode = (BoundingVolumeHierarchy.Node*)((byte*)&(blob->Offset) + blob->Offset);
                     return new BoundingVolumeHierarchy(firstNode, nodeFilters: null);
@@ -80,7 +79,7 @@ namespace ME.ECS.Essentials.Physics
         internal void UpdateCachedBoundingRadius()
         {
             float3 center = BoundingVolumeHierarchy.Domain.Center;
-            sfloat boundingRadiusSq = sfloat.Zero;
+            sfloat boundingRadiusSq = 0;
 
             for (int i = 0; i < Sections.Length; ++i)
             {
@@ -302,7 +301,7 @@ namespace ME.ECS.Essentials.Physics
 
                 short filterIndex = section.PrimitiveFilterIndices[sectionPrimitiveIndex];
                 polygon.Filter = section.Filters[filterIndex];
-                
+
                 short materialIndex = section.PrimitiveMaterialIndices[sectionPrimitiveIndex];
                 polygon.Material = section.Materials[materialIndex];
 
@@ -317,7 +316,7 @@ namespace ME.ECS.Essentials.Physics
         {
             int totalSize = 0;
 
-            for(var i = 0; i < tempSections.Length; ++i)
+            for (var i = 0; i < tempSections.Length; ++i)
             {
                 var section = tempSections[i];
                 int numPrimitives = section.PrimitivesLength;
@@ -341,7 +340,7 @@ namespace ME.ECS.Essentials.Physics
         internal unsafe void Init(BoundingVolumeHierarchy.Node* nodes, int nodeCount, MeshBuilder.TempSection tempSections, CollisionFilter filter, Material material)
         {
             byte* end = (byte*)UnsafeUtility.AddressOf(ref this) + sizeof(Mesh);
-            end = (byte*)Math.NextMultipleOf16((ulong)end);   
+            end = (byte*)Math.NextMultipleOf16((ulong)end);
 
             m_BvhNodesBlob.Offset = UnsafeEx.CalculateOffset(end, ref m_BvhNodesBlob);
             m_BvhNodesBlob.Length = nodeCount;

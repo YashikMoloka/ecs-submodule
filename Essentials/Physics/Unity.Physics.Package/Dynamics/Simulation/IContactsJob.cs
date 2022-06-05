@@ -1,10 +1,9 @@
 using System;
+using ME.ECS;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
-using ME.ECS;
 using ME.ECS.Mathematics;
 
 namespace ME.ECS.Essentials.Physics

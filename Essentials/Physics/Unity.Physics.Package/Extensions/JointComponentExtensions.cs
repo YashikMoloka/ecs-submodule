@@ -1,6 +1,6 @@
+using ME.ECS.Essentials.Physics.Components;
 using ME.ECS.Mathematics;
 using FloatRange = ME.ECS.Essentials.Physics.Math.FloatRange;
-using ME.ECS.Essentials.Physics.Components;
 
 namespace ME.ECS.Essentials.Physics.Extensions
 {
@@ -17,10 +17,10 @@ namespace ME.ECS.Essentials.Physics.Extensions
         /// <returns>The minimum required distance and maximum possible distance between the two anchor points.</returns>
         public static FloatRange GetLimitedDistanceRange(in this PhysicsJoint joint) =>
             new FloatRange
-            {
-                Min = joint[PhysicsJoint.k_LimitedDistanceRangeIndex].Min,
-                Max = joint[PhysicsJoint.k_LimitedDistanceRangeIndex].Max
-            };
+        {
+            Min = joint[PhysicsJoint.k_LimitedDistanceRangeIndex].Min,
+            Max = joint[PhysicsJoint.k_LimitedDistanceRangeIndex].Max
+        };
 
         /// <summary>
         /// Applies the specified range of motion to a <see cref="PhysicsJoint"/> created using <see cref="PhysicsJoint.CreateLimitedDistance"/>.
@@ -44,10 +44,10 @@ namespace ME.ECS.Essentials.Physics.Extensions
         /// <returns>The minimum required and maximum possible angle of rotation about the aligned axes.</returns>
         public static FloatRange GetLimitedHingeRange(in this PhysicsJoint joint) =>
             new FloatRange
-            {
-                Min = joint[PhysicsJoint.k_LimitedHingeRangeIndex].Min,
-                Max = joint[PhysicsJoint.k_LimitedHingeRangeIndex].Max
-            };
+        {
+            Min = joint[PhysicsJoint.k_LimitedHingeRangeIndex].Min,
+            Max = joint[PhysicsJoint.k_LimitedHingeRangeIndex].Max
+        };
 
         /// <summary>
         /// Applies the specified range of motion to a <see cref="PhysicsJoint"/> created using <see cref="PhysicsJoint.CreateLimitedHinge"/>.
@@ -71,10 +71,10 @@ namespace ME.ECS.Essentials.Physics.Extensions
         /// <returns>The minimum required and maximum possible distance between the two anchor points along their aligned axes.</returns>
         public static FloatRange GetPrismaticRange(in this PhysicsJoint joint) =>
             new FloatRange
-            {
-                Min = joint[PhysicsJoint.k_PrismaticDistanceOnAxisIndex].Min,
-                Max = joint[PhysicsJoint.k_PrismaticDistanceOnAxisIndex].Max
-            };
+        {
+            Min = joint[PhysicsJoint.k_PrismaticDistanceOnAxisIndex].Min,
+            Max = joint[PhysicsJoint.k_PrismaticDistanceOnAxisIndex].Max
+        };
 
         /// <summary>
         /// Applies the specified range of motion to a <see cref="PhysicsJoint"/> created using <see cref="PhysicsJoint.CreatePrismatic"/>.
@@ -116,7 +116,7 @@ namespace ME.ECS.Essentials.Physics.Extensions
         {
             angularTwistRange = math.clamp(angularTwistRange, new float2(-math.PI), new float2(math.PI));
             var constraints = joint.GetConstraints();
-            constraints.ElementAt(PhysicsJoint.k_RagdollPrimaryMaxConeIndex).Min = sfloat.Zero;
+            constraints.ElementAt(PhysicsJoint.k_RagdollPrimaryMaxConeIndex).Min = 0f;
             constraints.ElementAt(PhysicsJoint.k_RagdollPrimaryMaxConeIndex).Max = math.min(math.abs(maxConeAngle), math.PI);
             constraints.ElementAt(PhysicsJoint.k_RagdollPrimaryTwistRangeIndex).Min = angularTwistRange.Min;
             constraints.ElementAt(PhysicsJoint.k_RagdollPrimaryTwistRangeIndex).Max = angularTwistRange.Max;
@@ -129,10 +129,12 @@ namespace ME.ECS.Essentials.Physics.Extensions
         /// <returns>The range of angular motion defining the cones perpendicular to the primary cone, between which the primary axis may swing. This range may be asymmetrical.</returns>
         public static FloatRange GetRagdollPerpendicularConeRange(in this PhysicsJoint joint) =>
             new FloatRange
-            {
-                Min = joint[PhysicsJoint.k_RagdollPerpendicularRangeIndex].Min,
-                Max = joint[PhysicsJoint.k_RagdollPerpendicularRangeIndex].Max
-            } - new float2(sfloat.FromRaw(0x3fc90fdb));
+        {
+            Min = joint[PhysicsJoint.k_RagdollPerpendicularRangeIndex].Min,
+            Max = joint[PhysicsJoint.k_RagdollPerpendicularRangeIndex].Max
+        }
+
+        -new float2(math.PI / 2);
 
         /// <summary>
         /// Applies the specified range of motion to a ragdoll perpendicular cone <see cref="PhysicsJoint"/> created using <see cref="PhysicsJoint.CreateRagdoll"/>.
@@ -140,7 +142,7 @@ namespace ME.ECS.Essentials.Physics.Extensions
         /// <param name="angularPlaneRange">The range of angular motion defining the cones perpendicular to the primary cone, between which the primary cone's axis may swing. This range may be asymmetrical, and is clamped to the range (-pi/2, pi/2).</param>
         public static void SetRagdollPerpendicularConeRange(ref this PhysicsJoint joint, FloatRange angularPlaneRange)
         {
-            angularPlaneRange = math.clamp(angularPlaneRange + new float2(sfloat.FromRaw(0x3fc90fdb)), new float2(sfloat.Zero), new float2(math.PI));
+            angularPlaneRange = math.clamp(angularPlaneRange + new float2(math.PI / 2), new float2(0f), new float2(math.PI));
             var constraints = joint.GetConstraints();
             constraints.ElementAt(PhysicsJoint.k_RagdollPerpendicularRangeIndex).Min = angularPlaneRange.Min;
             constraints.ElementAt(PhysicsJoint.k_RagdollPerpendicularRangeIndex).Max = angularPlaneRange.Max;

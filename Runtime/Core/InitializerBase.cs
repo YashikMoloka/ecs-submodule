@@ -148,27 +148,41 @@ namespace ME.ECS {
             world.SetDebugSettings(this.worldDebugSettings);
             world.InitializeDefaults();
 
-            // Initialize scene
-            this.InitializeScene(world);
-            
             // Initialize features
             this.InitializeFeatures(world);
             
+            // Initialize scene
+            this.InitializeScene(world);
+
         }
 
         private void InitializeScene(World world) {
 
             var sceneEntityViews = InitializerBase.FindObjectsOfType<ME.ECS.Views.Providers.SceneViewInitializer>();
+            var list = PoolList<ME.ECS.Views.Providers.SceneViewInitializer>.Spawn(sceneEntityViews.Length);
             for (int i = 0; i < sceneEntityViews.Length; ++i) {
 
                 var view = sceneEntityViews[i];
                 if (view != null) {
-                    
-                    ((ME.ECS.Views.Providers.ISceneView)view).Initialize(world);
-                    
+
+                    var parent = view.GetComponentsInParent<ME.ECS.Views.Providers.SceneViewInitializer>(true);
+                    if (parent.Length <= 1) {
+
+                        list.Add(view);
+
+                    }
+
                 }
 
             }
+            for (int i = 0; i < list.Count; ++i) {
+
+                var view = list[i];
+                ((ME.ECS.Views.Providers.ISceneView)view).Initialize(world);
+                
+            }
+            
+            PoolList<ME.ECS.Views.Providers.SceneViewInitializer>.Recycle(ref list);
 
         }
 

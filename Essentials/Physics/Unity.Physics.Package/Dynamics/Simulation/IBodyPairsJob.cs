@@ -1,10 +1,9 @@
 using System;
+using ME.ECS;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
-using ME.ECS;
 
 namespace ME.ECS.Essentials.Physics
 {
@@ -100,7 +99,7 @@ namespace ME.ECS.Essentials.Physics
             public T UserJobData;
             public NativeArray<DispatchPairSequencer.DispatchPair> PhasedDispatchPairs;
             //Need to disable aliasing restriction in case T has a NativeArray of PhysicsWorld.Bodies:
-            [ReadOnly] [NativeDisableContainerSafetyRestriction] public NativeArray<RigidBody> Bodies;
+            [ReadOnly][NativeDisableContainerSafetyRestriction] public NativeArray<RigidBody> Bodies;
         }
 
         internal struct BodyPairsJobProcess<T> where T : struct, IBodyPairsJobBase

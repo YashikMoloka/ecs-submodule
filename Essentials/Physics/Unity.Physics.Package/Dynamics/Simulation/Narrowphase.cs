@@ -1,8 +1,7 @@
+using ME.ECS;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
-
-using ME.ECS.Mathematics;
 
 namespace ME.ECS.Essentials.Physics
 {

@@ -1,8 +1,7 @@
 using System;
+using ME.ECS;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Entities;
-using ME.ECS;
 
 namespace ME.ECS.Essentials.Physics
 {

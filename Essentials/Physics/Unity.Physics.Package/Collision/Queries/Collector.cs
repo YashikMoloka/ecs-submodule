@@ -1,10 +1,10 @@
+using System.Runtime.CompilerServices;
+using ME.ECS;
 using Unity.Collections;
-using Unity.Entities;
+using Unity.Collections.LowLevel.Unsafe;
+using ME.ECS.Mathematics;
 using UnityEngine.Assertions;
 using static ME.ECS.Essentials.Physics.Math;
-
-using ME.ECS;
-using ME.ECS.Mathematics;
 
 namespace ME.ECS.Essentials.Physics
 {
@@ -36,14 +36,19 @@ namespace ME.ECS.Essentials.Physics
         public MTransform WorldFromLocalTransform;
         public bool IsInitialized;
 
+        // Needed only in ColliderCast queries with non convex input, where it is used to
+        // handle penetration cases properly.
+        public bool IsFlipped;
+
         public static QueryContext DefaultContext => new QueryContext
         {
             RigidBodyIndex = -1,
             ColliderKey = ColliderKey.Empty,
-            Entity = Entity.Empty,
+            Entity = Entity.Null,
             NumColliderKeyBits = 0,
             WorldFromLocalTransform = MTransform.Identity,
-            IsInitialized = true
+            IsInitialized = true,
+            IsFlipped = false
         };
 
         public ColliderKey SetSubKey(uint childSubKeyNumOfBits, uint childSubKey)
@@ -99,7 +104,7 @@ namespace ME.ECS.Essentials.Physics
 
         public bool AddHit(T hit)
         {
-            Assert.IsTrue(hit.Fraction < MaxFraction);
+            Assert.IsTrue(hit.Fraction <= MaxFraction);
             return true;
         }
 
@@ -156,7 +161,7 @@ namespace ME.ECS.Essentials.Physics
 
         public bool AddHit(T hit)
         {
-            Assert.IsTrue(hit.Fraction < MaxFraction);
+            Assert.IsTrue(hit.Fraction <= MaxFraction);
 
             AllHits.Add(hit);
             return true;
@@ -173,14 +178,23 @@ namespace ME.ECS.Essentials.Physics
         where C : struct, ICollector<T>
     {
         public bool EarlyOutOnFirstHit => Collector.EarlyOutOnFirstHit;
-
         public sfloat MaxFraction => Collector.MaxFraction;
-
         public int NumHits => Collector.NumHits;
 
         // Todo: have a QueryInteraction field here, and filter differently based on it in AddHit()
         // at the moment, this collector will only get constructed if IgnoreTriggers interaction is selected
-        public C Collector;
+        public ref C Collector
+        {
+            get => ref UnsafeUtility.AsRef<C>(m_CollectorPtr);
+        }
+
+        // This must be a void ptr, since C# doesn't allow generic type pointers
+        private void* m_CollectorPtr;
+
+        public QueryInteractionCollector(ref C collector)
+        {
+            m_CollectorPtr = UnsafeUtility.AddressOf(ref collector);
+        }
 
         public bool AddHit(T hit)
         {
@@ -188,6 +202,98 @@ namespace ME.ECS.Essentials.Physics
             {
                 return false;
             }
+
+            return Collector.AddHit(hit);
+        }
+    }
+
+    // Collector used when flipping input and target of collider cast queries
+    // It is just a wrapper around user provided collector (base collector)
+    // All it does is restore the flipped query output to a non-flipped one
+    // and passes the modified hit to the provided collector.
+    internal unsafe struct FlippedColliderCastQueryCollector<C> : ICollector<ColliderCastHit>
+        where C : struct, ICollector<ColliderCastHit>
+    {
+        public bool EarlyOutOnFirstHit => Collector.EarlyOutOnFirstHit;
+        public sfloat MaxFraction => Collector.MaxFraction;
+        public int NumHits => Collector.NumHits;
+
+        public ref C Collector
+        {
+            get => ref UnsafeUtility.AsRef<C>(m_CollectorPtr);
+        }
+
+        private ColliderKey m_TargetColliderKey;
+        private Material m_TargetMaterial;
+        private float3 m_CastDirectionWS;
+
+        // This must be a void ptr, since C# doesn't allow generic type pointers
+        private void* m_CollectorPtr;
+
+        public FlippedColliderCastQueryCollector(ref C collector, float3 castDirectionWS, ColliderKey targetColliderKey, Material targetMaterial)
+        {
+            m_TargetColliderKey = targetColliderKey;
+            m_TargetMaterial = targetMaterial;
+            m_CastDirectionWS = castDirectionWS;
+            m_CollectorPtr = UnsafeUtility.AddressOf(ref collector);
+        }
+
+        public bool AddHit(ColliderCastHit hit)
+        {
+            hit.Position = hit.Position + hit.Fraction * m_CastDirectionWS;
+            hit.SurfaceNormal = -hit.SurfaceNormal;
+
+            // Collider keys are in 'flipped' order, need to swap them.
+            hit.QueryColliderKey = hit.ColliderKey;
+            hit.ColliderKey = m_TargetColliderKey;
+
+            // Material at this point represents the query collider material, which needs to be corrected to target collider material.
+            hit.Material = m_TargetMaterial;
+
+            return Collector.AddHit(hit);
+        }
+    }
+
+    // Collector used when flipping input and target of collider distance queries
+    // It is just a wrapper around user provided collector (base collector)
+    // All it does is restore the flipped query output to a non-flipped one
+    // and passes the modified hit to the provided collector.
+    internal unsafe struct FlippedColliderDistanceQueryCollector<C> : ICollector<DistanceHit>
+        where C : struct, ICollector<DistanceHit>
+    {
+        public bool EarlyOutOnFirstHit => Collector.EarlyOutOnFirstHit;
+        public sfloat MaxFraction => Collector.MaxFraction;
+        public int NumHits => Collector.NumHits;
+
+        public ref C Collector
+        {
+            get => ref UnsafeUtility.AsRef<C>(m_CollectorPtr);
+        }
+
+        private ColliderKey m_TargetColliderKey;
+        private Material m_TargetMaterial;
+
+        // This must be a void ptr, since C# doesn't allow generic type pointers
+        private void* m_CollectorPtr;
+
+        public FlippedColliderDistanceQueryCollector(ref C collector, ColliderKey targetColliderKey, Material targetMaterial)
+        {
+            m_TargetColliderKey = targetColliderKey;
+            m_TargetMaterial = targetMaterial;
+            m_CollectorPtr = UnsafeUtility.AddressOf(ref collector);
+        }
+
+        public bool AddHit(DistanceHit hit)
+        {
+            hit.Position = hit.Position + hit.SurfaceNormal * hit.Fraction;
+            hit.SurfaceNormal = -hit.SurfaceNormal;
+
+            // Collider keys are in 'flipped' order, need to swap them.
+            hit.QueryColliderKey = hit.ColliderKey;
+            hit.ColliderKey = m_TargetColliderKey;
+
+            // Material at this point represents the query collider material, which needs to be corrected to target collider material.
+            hit.Material = m_TargetMaterial;
 
             return Collector.AddHit(hit);
         }

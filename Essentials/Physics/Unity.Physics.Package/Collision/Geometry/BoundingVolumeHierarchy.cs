@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-
 using ME.ECS.Mathematics;
 
 namespace ME.ECS.Essentials.Physics
@@ -52,7 +51,7 @@ namespace ME.ECS.Essentials.Physics
 
             public bool IsInternal { get => Flags == 0; set => Flags = value ? 0 : 1; }
             public bool IsLeaf { get => Flags != 0; set => Flags = value ? 1 : 0; }
-            
+
             public bool4 AreLeavesValid => (Data != new int4(-1));
             public bool4 AreInternalsValid => (Data != int4.zero);
 
@@ -142,7 +141,8 @@ namespace ME.ECS.Essentials.Physics
                         }
                         pairWriter.FlushIfNeeded();
                     }
-                } while (stack > unaryStack);
+                }
+                while (stack > unaryStack);
             }
             else
             {
@@ -159,7 +159,8 @@ namespace ME.ECS.Essentials.Physics
                     }
 
                     pairWriter.FlushIfNeeded();
-                } while (stackA > binaryStackA);
+                }
+                while (stackA > binaryStackA);
             }
         }
 
@@ -337,7 +338,8 @@ namespace ME.ECS.Essentials.Physics
                     *((int4*)stack) = compressedValues;
                     stack += compressedCount;
                 }
-            } while (stack > binaryStack);
+            }
+            while (stack > binaryStack);
         }
 
         #endregion
@@ -380,7 +382,8 @@ namespace ME.ECS.Essentials.Physics
                     *((int4*)top) = hitData;
                     top += hitCount;
                 }
-            } while (top > stack);
+            }
+            while (top > stack);
 
             return hadHit;
         }
@@ -439,7 +442,8 @@ namespace ME.ECS.Essentials.Physics
                     *((int4*)top) = hitData;
                     top += hitCount;
                 }
-            } while (top > stack);
+            }
+            while (top > stack);
 
             return hadHit;
         }
@@ -497,7 +501,8 @@ namespace ME.ECS.Essentials.Physics
                     *((int4*)stack) = hitData;
                     stack += hitCount;
                 }
-            } while (stack > binaryStack);
+            }
+            while (stack > binaryStack);
 
             return hadHit;
         }
@@ -556,7 +561,8 @@ namespace ME.ECS.Essentials.Physics
                     *((int4*)stack) = hitData;
                     stack += hitCount;
                 }
-            } while (stack > binaryStack);
+            }
+            while (stack > binaryStack);
 
             return hadHit;
         }
