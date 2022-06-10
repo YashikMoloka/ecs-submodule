@@ -149,7 +149,7 @@ namespace ME.ECS.Network {
      Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
      Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
     #endif
-    public abstract class NetworkModule<TState> : INetworkModule<TState>, IUpdatePreLate, IUpdatePost, StatesHistory.IEventRunner, IModuleValidation where TState : State, new() {
+    public abstract class NetworkModule<TState> : INetworkModule<TState>, IUpdateLate, IUpdatePost, StatesHistory.IEventRunner, IModuleValidation where TState : State, new() {
 
         private static readonly RPCId CANCEL_EVENT_RPC_ID = -11;
         private static readonly RPCId PING_RPC_ID = -1;
@@ -692,9 +692,23 @@ namespace ME.ECS.Network {
 
         }
 
+        /// <summary>
+        /// Remove event from history
+        /// </summary>
         protected void CancelEvent(ME.ECS.StatesHistory.HistoryEvent historyEvent) {
 
             this.statesHistoryModule.CancelEvent(historyEvent);
+
+        }
+
+        /// <summary>
+        /// Remove all events from [tick..to)
+        /// </summary>
+        /// <param name="from">Include</param>
+        /// <param name="to">Exclude</param>
+        protected void CancelEvents(Tick from, Tick to) {
+
+            this.statesHistoryModule.CancelEvents(from, to);
 
         }
 
@@ -806,6 +820,7 @@ namespace ME.ECS.Network {
 
                 }
                 sourceState = this.world.GetResetState<TState>();
+                sourceTick = Tick.Zero;
 
             }
             //UnityEngine.Debug.LogWarning("Rollback. Oldest: " + oldestEventTick + ", sourceTick: " + sourceTick + " (hash: " + sourceState.GetHash() + " rnd: " + sourceState.randomState + "), targetTick: " + targetTick + ", currentTick: " + tick + ", timeSinceGameStart: " + timeSinceGameStart);
@@ -834,7 +849,7 @@ namespace ME.ECS.Network {
                 this.revertingTo = tick;
                 currentState.CopyFrom(sourceState);
                 currentState.Initialize(this.world, freeze: false, restore: true);
-                if (this.asyncMode == false) this.world.Simulate(sourceTick, tick, 0f);
+                if (this.asyncMode == false) this.world.Simulate(sourceTick, tick);
             }
             this.isReverting = false;
             this.OnRevertingEnd();
@@ -865,7 +880,7 @@ namespace ME.ECS.Network {
 
         }
 
-        public virtual void UpdatePreLate(in float deltaTime) {
+        public virtual void UpdateLate(in float deltaTime) {
 
             this.ReceiveEventsAndApply();
             this.ApplyTicksByState();

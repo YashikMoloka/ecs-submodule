@@ -938,7 +938,7 @@ namespace ME.ECS {
 
         }
         
-        public System.Collections.IEnumerator RewindToAsync(Tick tick, bool doVisualUpdate = true, System.Action<RewindAsyncState> onState = null, float maxSimulationTime = 1f) {
+        public async System.Threading.Tasks.Task RewindToAsync(Tick tick, bool doVisualUpdate = true, System.Action<RewindAsyncState> onState = null, float maxSimulationTime = 1f) {
 
             var rewindState = this.GetRewindState(tick, maxSimulationTime);
             onState?.Invoke(rewindState);
@@ -960,7 +960,7 @@ namespace ME.ECS {
 
                     this.networkModule.SetAsyncMode(true);
                     this.PreUpdate(0f);
-                    yield return this.SimulateAsync(this.simulationFromTick, this.simulationToTick, 0f, maxSimulationTime);
+                    await this.SimulateAsync(this.simulationFromTick, this.simulationToTick, maxSimulationTime);
                     this.networkModule.SetAsyncMode(false);
                     if (doVisualUpdate == true) {
                         
@@ -995,7 +995,7 @@ namespace ME.ECS {
                 var currentState = this.GetState();
                 currentState.CopyFrom(prevState);
                 currentState.Initialize(this, freeze: false, restore: true);
-                this.Simulate(sourceTick, tick, 0f);
+                this.Simulate(sourceTick, tick);
                 this.Refresh(doVisualUpdate);
             }
 
@@ -1270,7 +1270,7 @@ namespace ME.ECS {
 
         }
 
-        internal void InitializeDefaults() {
+        internal void TryInitializeDefaults() {
             
             if (this.entitiesOneShotFilter.IsAlive() == false) {
                 
@@ -1392,7 +1392,7 @@ namespace ME.ECS {
 
         public void SetEntitiesCapacity(int capacity) {
 
-            var curCap = this.entitiesCapacity;
+            var curCap = this.entitiesCapacity + this.currentState.storage.AliveCount;
             
             this.entitiesCapacity = capacity;
             this.SetEntityCapacityPlugins(capacity);
@@ -1469,7 +1469,7 @@ namespace ME.ECS {
 
         }
 
-        public void UpdateEntityOnCreate(in Entity entity, bool isNew) {
+        internal void UpdateEntityOnCreate(in Entity entity, bool isNew) {
 
             #if !FILTERS_STORAGE_LEGACY
             if (isNew == true) {
@@ -1836,7 +1836,9 @@ namespace ME.ECS {
         public void UpdateLogic(float deltaTime) {
 
             if (deltaTime < 0f) return;
-
+            
+            this.TryInitializeDefaults();
+            
             ////////////////
             // Update Logic Tick
             ////////////////
@@ -1856,7 +1858,7 @@ namespace ME.ECS {
 
             }
 
-            this.Simulate(this.simulationFromTick, this.simulationToTick, deltaTime);
+            this.Simulate(this.simulationFromTick, this.simulationToTick);
 
             #if UNITY_EDITOR
             UnityEngine.Profiling.Profiler.EndSample();
@@ -2038,9 +2040,9 @@ namespace ME.ECS {
                         UnityEngine.Profiling.Profiler.BeginSample(this.modules[i].GetType().FullName);
                         #endif
 
-                        if (this.modules[i] is IUpdatePreLate moduleBase) {
+                        if (this.modules[i] is IUpdateLate moduleBase) {
 
-                            moduleBase.UpdatePreLate(deltaTime);
+                            moduleBase.UpdateLate(deltaTime);
 
                         }
 
@@ -2233,6 +2235,16 @@ namespace ME.ECS {
         [System.Diagnostics.ConditionalAttribute("UNITY_EDITOR")]
         public void OnDrawGizmos() {
 
+            foreach (var module in this.modules) {
+
+                if (module is IDrawGizmos gizmos) {
+                    
+                    gizmos.OnDrawGizmos();
+                    
+                }
+                
+            }
+
             foreach (var group in this.systemGroups) {
 
                 if (group.runtimeSystem.allSystems == null) continue;
@@ -2248,16 +2260,6 @@ namespace ME.ECS {
                 
             }
 
-            foreach (var module in this.modules) {
-
-                if (module is IDrawGizmos gizmos) {
-                    
-                    gizmos.OnDrawGizmos();
-                    
-                }
-                
-            }
-            
         }
 
         public void PreUpdate(float deltaTime) {
@@ -2406,12 +2408,12 @@ namespace ME.ECS {
 
         }
 
-        public System.Collections.IEnumerator SimulateAsync(Tick from, Tick to, float deltaTime, float maxTime) {
+        public async System.Threading.Tasks.Task SimulateAsync(Tick from, Tick to, float maxTime) {
 
             if (from > to) {
 
                 //UnityEngine.Debug.LogError( UnityEngine.Time.frameCount + " From: " + from + ", To: " + to);
-                yield break;
+                return;
 
             }
 
@@ -2431,7 +2433,7 @@ namespace ME.ECS {
 
                 if (sw.ElapsedMilliseconds >= maxTickTime) {
                 
-                    yield return null;
+                    await System.Threading.Tasks.Task.Yield();
                     sw.Restart();
                     
                 }
@@ -2975,7 +2977,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Simulate(Tick from, Tick to, float deltaTime) {
+        public void Simulate(Tick from, Tick to) {
             
             if (from > to) {
 
