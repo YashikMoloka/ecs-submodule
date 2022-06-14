@@ -106,6 +106,7 @@ namespace ME.ECS.Collections {
         public NativeBufferArraySliced<T> CopyFrom<TCopy>(in NativeBufferArraySliced<T> other, in TCopy copy) where TCopy : IArrayElementCopyWithIndex<T> {
 
             ref var data = ref this.data;
+            this.isCreated = other.isCreated;
             //var tails = this.tails;
             NativeArrayUtils.CopyWithIndex(other.data, ref data, copy);
             //ArrayUtils.Copy(other.tails, ref tails, new ArrayCopy<TCopy>() { elementCopy = copy });
@@ -119,6 +120,7 @@ namespace ME.ECS.Collections {
         public NativeBufferArraySliced<T> CopyFrom(in NativeBufferArraySliced<T> other) {
 
             ref var data = ref this.data;
+            this.isCreated = other.isCreated;
             //var tails = this.tails;
             NativeArrayUtils.Copy(in other.data, ref data);
             //ArrayUtils.Copy(other.tails, ref tails, new ArrayCopy());
@@ -159,6 +161,7 @@ namespace ME.ECS.Collections {
                 tails.arr[idx] = new NativeBufferArray<T>(bucketSize);//PoolArray<T>.Spawn(bucketSize, realSize: false);
                 this.tailsLength += bucketSize;
                 result = true;
+                this.isCreated = true;
                 return this;
 
             }
@@ -219,6 +222,8 @@ namespace ME.ECS.Collections {
 
             this.tails.Dispose();
             this.tails = default;
+
+            this.isCreated = false;
             
             return default;
 
