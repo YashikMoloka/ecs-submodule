@@ -6,7 +6,17 @@ namespace ME.ECS.Essentials.GOAP {
     public class GOAPGroup : ScriptableObject {
 
         public GOAPAction[] actions;
-        public GOAPGoal goal;
+        public GOAPGoal[] goals;
+
+        internal void DoAwake() {
+
+            for (int i = 0; i < this.actions.Length; ++i) {
+
+                this.actions[i].DoAwake();
+
+            }
+            
+        }
 
         internal void Dispose() {
 

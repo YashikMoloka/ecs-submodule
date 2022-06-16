@@ -378,18 +378,22 @@ namespace ME.ECSEditor {
             var source = obj.Copy();
             SerializedProperty iterator = obj;
             if (iterator.NextVisible(true) == false) return;
+            var depth = iterator.depth;
             if (iterator.NextVisible(true) == false) return;
 
-            var depth = iterator.depth;
-            var it = iterator.Copy();
             var props = new System.Collections.Generic.List<SerializedProperty>();
+            var it = iterator.Copy();
             do {
                 if (it.depth < depth) continue;
                 props.Add(it.Copy());
             } while (it.NextVisible(false));
+            
+            if (props.Count == 0) return;
 
             props = props.OrderBy(x => {
-                var groupAttr = x.GetValue().GetType().GetCustomAttribute<ComponentGroupAttribute>(true);
+                var val = x.GetValue();
+                if (val == null) return 0;
+                var groupAttr = val.GetType().GetCustomAttribute<ComponentGroupAttribute>(true);
                 if (groupAttr != null) {
 
                     return groupAttr.order;
@@ -399,7 +403,9 @@ namespace ME.ECSEditor {
                 return 0;
             }).ThenBy(x => {
                 
-                var orderAttr = x.GetValue().GetType().GetCustomAttribute<ComponentOrderAttribute>(true);
+                var val = x.GetValue();
+                if (val == null) return 0;
+                var orderAttr = val.GetType().GetCustomAttribute<ComponentOrderAttribute>(true);
                 if (orderAttr != null) {
 
                     return orderAttr.order;
@@ -436,7 +442,8 @@ namespace ME.ECSEditor {
 
                 if (drawGroups == true) {
 
-                    var groupAttr = iterator.GetValue().GetType().GetCustomAttribute<ComponentGroupAttribute>(true);
+                    var val = iterator.GetValue();
+                    var groupAttr = val == null ? null : val.GetType().GetCustomAttribute<ComponentGroupAttribute>(true);
                     if (groupAttr != null) {
 
                         if (groupAttr.name != curGroup) {
@@ -532,14 +539,17 @@ namespace ME.ECSEditor {
                 } else {
                     
                     var label = GUILayoutExt.GetStringCamelCaseSpace(type.Name);
+                    #if UNITY_2021_OR_NEWER
+					// Because of a bug with PropertyField label
                     if (iterator.hasVisibleChildren == true) {
 
                         var childs = iterator.Copy();
                         //var height = EditorUtilities.GetPropertyHeight(childs, true, new GUIContent(label));
                         var cnt = EditorUtilities.GetPropertyChildCount(childs);
-                        if (cnt == 1 /*&& height <= 22f*/) iterator.NextVisible(true);
+                        if (cnt == 1) iterator.NextVisible(true);
 
                     }
+                    #endif
 
                     var propertyField = new PropertyField(iterator.Copy(), label);
                     propertyField.BindProperty(iterator);

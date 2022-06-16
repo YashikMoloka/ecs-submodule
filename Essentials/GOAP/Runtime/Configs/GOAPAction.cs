@@ -5,15 +5,35 @@ namespace ME.ECS.Essentials.GOAP {
     [CreateAssetMenu(menuName = "ME.ECS/Addons/GOAP/Actions/Default", order = -1)]
     public class GOAPAction : ScriptableObject {
 
+        [Tooltip("Larger cost means longer action")]
+        [Min(0f)]
         public float cost = 1f;
         public PreconditionsData preconditions;
         public EffectsData effects;
 
         private Precondition? preconditionCache;
         private Effect? effectsCache;
+        private bool isInitialized;
 
-        internal void Dispose() {
+        internal void DoAwake() {
 
+            if (this.isInitialized == false) {
+
+                this.isInitialized = true;
+                this.OnAwake();
+
+            }
+
+        }
+        
+        protected virtual void OnAwake() {
+            
+        }
+        
+        protected internal virtual void Dispose() {
+
+            this.isInitialized = false;
+            
             if (this.preconditionCache.HasValue == true) {
                 this.preconditionCache.Value.Dispose();
                 this.preconditionCache = null;
