@@ -90,14 +90,14 @@ namespace ME.ECS.Pathfinding {
 
         private struct CopyNode : IArrayElementCopy<Node> {
 
-            public void Copy(Node from, ref Node to) {
+            public void Copy(in Node from, ref Node to) {
 
                 if (to == null) to = PoolClass<GridNode>.Spawn();
                 to.CopyFrom(from);
 
             }
 
-            public void Recycle(Node item) {
+            public void Recycle(ref Node item) {
 
                 var g = (GridNode)item;
                 PoolClass<GridNode>.Recycle(ref g);
@@ -545,7 +545,7 @@ namespace ME.ECS.Pathfinding {
                 var nodeColorUnwalkable = new Color(1f, 0.2f, 0.2f, 0.4f);
                 for (int j = 0; j < this.nodes.innerArray.Length; ++j) {
 
-                    var node = (GridNode)this.nodes.innerArray.arr[j];
+                    var node = (GridNode)this.nodes.innerArray[j];
                     if (node == null) continue;
                     //var x = node.position.z;
                     //var y = node.position.y;

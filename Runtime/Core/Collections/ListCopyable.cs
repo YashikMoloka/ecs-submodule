@@ -19,7 +19,7 @@
         private static bool isValueType;
         
         [ME.ECS.Serializer.SerializeField]
-        public BufferArray<T> innerArray;
+        public T[] innerArray;
         [ME.ECS.Serializer.SerializeField]
         public int Count { get; private set; } //Also the index of the next element to be added
 
@@ -27,6 +27,7 @@
         [ME.ECS.Serializer.SerializeField]
         public int Capacity = ListCopyable<T>.DefaultCapacity;
 
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         public void CopyFrom(ListCopyable<T> other) {
 
             this.Count = other.Count;
@@ -34,10 +35,19 @@
             ArrayUtils.Copy(other.innerArray, ref this.innerArray);
 
         }
+        
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public void CopyFrom<TCopy>(ListCopyable<T> other, TCopy copy) where TCopy : IArrayElementCopy<T> {
 
+            this.Count = other.Count;
+            this.Capacity = other.Capacity;
+            ArrayUtils.Copy(other.innerArray, ref this.innerArray, copy);
+
+        }
+        
         public void OnSpawn() {
 
-            this.innerArray = PoolArray<T>.Spawn(this.Capacity);
+            //this.innerArray = PoolArray<T>.Spawn(this.Capacity);
             this.Capacity = 0;
             this.Initialize();
 
@@ -45,13 +55,14 @@
 
         public void OnRecycle() {
 
-            PoolArray<T>.Recycle(ref this.innerArray);
+            //PoolArray<T>.Recycle(ref this.innerArray);
+            ArrayUtils.Clear(this.innerArray);
             this.Capacity = 0;
             this.Count = 0;
 
         }
         
-        public ListCopyable(BufferArray<T> startArray) {
+        public ListCopyable(T[] startArray) {
             this.innerArray = startArray;
             this.Count = this.innerArray.Length;
             this.Capacity = this.innerArray.Length;
@@ -59,7 +70,7 @@
 
         public ListCopyable(int startCapacity) {
             this.Capacity = startCapacity;
-            this.innerArray = PoolArray<T>.Spawn(this.Capacity);
+            this.innerArray = new T[this.Capacity];
 
             this.Initialize();
         }
@@ -76,7 +87,7 @@
         }
 
         public int IndexOf(T item) {
-            return this.innerArray.IndexOf(item);
+            return System.Array.IndexOf(this.innerArray, item);
         }
 
         public void RemoveRange(int index, int count) {
@@ -93,11 +104,11 @@
             }
 
             if (copyCount > 0) {
-                System.Array.Copy(this.innerArray.arr, copyIndex, this.innerArray.arr, index, copyCount);
+                System.Array.Copy(this.innerArray, copyIndex, this.innerArray, index, copyCount);
                 resetIndex += copyCount;
             }
 
-            System.Array.Clear(this.innerArray.arr, resetIndex, this.Count - resetIndex);
+            System.Array.Clear(this.innerArray, resetIndex, this.Count - resetIndex);
             this.Count -= count;
             
         }
@@ -110,11 +121,11 @@
 
             this.Count -= count;
             if (this.Count > 0) {
-                System.Array.Copy(this.innerArray.arr, count, this.innerArray.arr, 0, this.Count);
+                System.Array.Copy(this.innerArray, count, this.innerArray, 0, this.Count);
             }
 
             var clearCount = this.Count > count ? this.Count : count;
-            System.Array.Clear(this.innerArray.arr, this.Count, clearCount);
+            System.Array.Clear(this.innerArray, this.Count, clearCount);
             
         }
 
@@ -125,7 +136,7 @@
             }
 
             this.Count -= count;
-            System.Array.Clear(this.innerArray.arr, this.Count, count);
+            System.Array.Clear(this.innerArray, this.Count, count);
             
         }
 
@@ -137,37 +148,37 @@
         
         public void Add(T item) {
             this.EnsureCapacity(this.Count + 1);
-            this.innerArray.arr[this.Count++] = item;
+            this.innerArray[this.Count++] = item;
 
         }
 
         public void AddRange<U>(Unity.Collections.NativeArray<U> items) where U : struct {
             var arrayLength = items.Length;
             this.EnsureCapacity(this.Count + arrayLength + 1);
-            NativeArrayUtils.CopyCast<U, T>(in items, 0, this.innerArray.arr, this.Count, arrayLength);
+            NativeArrayUtils.CopyCast<U, T>(in items, 0, this.innerArray, this.Count, arrayLength);
             this.Count += arrayLength;
             /*for (var i = 0; i < arrayLength; i++) {
-                this.innerArray.arr[this.Count++] = items.arr[i];
+                this.innerArray[this.Count++] = items.arr[i];
             }*/
         }
 
         public void AddRange(BufferArray<T> items) {
             var arrayLength = items.Count;
             this.EnsureCapacity(this.Count + arrayLength + 1);
-            System.Array.Copy(items.arr, 0, this.innerArray.arr, this.Count, arrayLength);
+            System.Array.Copy(items.arr, 0, this.innerArray, this.Count, arrayLength);
             this.Count += arrayLength;
             /*for (var i = 0; i < arrayLength; i++) {
-                this.innerArray.arr[this.Count++] = items.arr[i];
+                this.innerArray[this.Count++] = items.arr[i];
             }*/
         }
 
         public void AddRange(ListCopyable<T> items) {
             var arrayLength = items.Count;
             this.EnsureCapacity(this.Count + arrayLength + 1);
-            System.Array.Copy(items.innerArray.arr, 0, this.innerArray.arr, this.Count, arrayLength);
+            System.Array.Copy(items.innerArray, 0, this.innerArray, this.Count, arrayLength);
             this.Count += arrayLength;
             /*for (var i = 0; i < arrayLength; i++) {
-                this.innerArray.arr[this.Count++] = items[i];
+                this.innerArray[this.Count++] = items[i];
             }*/
         }
 
@@ -175,14 +186,14 @@
             var arrayLength = items.Count;
             this.EnsureCapacity(this.Count + arrayLength + 1);
             for (var i = 0; i < arrayLength; i++) {
-                this.innerArray.arr[this.Count++] = items[i];
+                this.innerArray[this.Count++] = items[i];
             }
         }
 
         public void AddRange(System.Collections.Generic.IList<T> items, int startIndex, int count) {
             this.EnsureCapacity(this.Count + count + 1);
             for (var i = 0; i < count; i++) {
-                this.innerArray.arr[this.Count++] = items[i + startIndex];
+                this.innerArray[this.Count++] = items[i + startIndex];
             }
         }
 
@@ -191,7 +202,7 @@
             if (array != null && array.Rank != 1)
                 ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_RankMultiDimNotSupported);
             {
-                System.Array.Copy(this.innerArray.arr, 0, array, arrayIndex, this.Count);
+                System.Array.Copy(this.innerArray, 0, array, arrayIndex, this.Count);
             }
             
         }
@@ -199,7 +210,7 @@
         public bool Remove(T item) {
 
             if (this.Count == 0) return false;
-            var index = System.Array.IndexOf(this.innerArray.arr, item, 0, this.Count);
+            var index = System.Array.IndexOf(this.innerArray, item, 0, this.Count);
             if (index >= 0) {
                 this.RemoveAt(index);
                 return true;
@@ -211,20 +222,29 @@
         public void RemoveAt(int index) {
             
             this.Count--;
-            if (index < this.Count) System.Array.Copy(this.innerArray.arr, index + 1, this.innerArray.arr, index, this.Count - index);
-            this.innerArray.arr[this.Count] = default(T);
+            if (index < this.Count) System.Array.Copy(this.innerArray, index + 1, this.innerArray, index, this.Count - index);
+            this.innerArray[this.Count] = default(T);
 
         }
 
         public void RemoveAtFast(int index) {
             
             this.Count--;
-            this.innerArray.arr[index] = this.innerArray.arr[this.Count];
-            this.innerArray.arr[this.Count] = default;
+            this.innerArray[index] = this.innerArray[this.Count];
+            this.innerArray[this.Count] = default;
             
         }
 
-        public BufferArray<T> GetArray() {
+        public void RemoveAtFast(int index, out T moved) {
+            
+            this.Count--;
+            moved = this.innerArray[this.Count];
+            this.innerArray[index] = moved;
+            this.innerArray[this.Count] = default;
+            
+        }
+
+        public T[] GetArray() {
 
             return this.innerArray;
 
@@ -232,30 +252,30 @@
         
         public T[] ToArray() {
             var retArray = new T[this.Count];
-            System.Array.Copy(this.innerArray.arr, 0, retArray, 0, this.Count);
+            System.Array.Copy(this.innerArray, 0, retArray, 0, this.Count);
             return retArray;
         }
 
         public BufferArray<T> ToBufferArray() {
             var retArray = PoolArray<T>.Spawn(this.Count);
-            System.Array.Copy(this.innerArray.arr, 0, retArray.arr, 0, this.Count);
+            System.Array.Copy(this.innerArray, 0, retArray.arr, 0, this.Count);
             return retArray;
         }
 
         public bool Contains(T item) {
             if (this.Count == 0) return false;
-            return System.Array.IndexOf(this.innerArray.arr, item, 0, this.Count) != -1;
+            return System.Array.IndexOf(this.innerArray, item, 0, this.Count) != -1;
         }
 
         public void Reverse() {
             
-            System.Array.Reverse(this.innerArray.arr,0,this.Count);
+            System.Array.Reverse(this.innerArray,0,this.Count);
             /*var highCount = this.Count / 2;
             var reverseCount = this.Count - 1;
             for (var i = 0; i < highCount; i++) {
-                var swapItem = this.innerArray.arr[i];
-                this.innerArray.arr[i] = this.innerArray.arr[reverseCount];
-                this.innerArray.arr[reverseCount] = swapItem;
+                var swapItem = this.innerArray[i];
+                this.innerArray[i] = this.innerArray[reverseCount];
+                this.innerArray[reverseCount] = swapItem;
 
                 --reverseCount;
             }*/
@@ -268,7 +288,8 @@
                     this.Capacity = min;
                 }
 
-                ArrayUtils.Resize(this.Capacity - 1, ref this.innerArray, resizeWithOffset: false);
+                //ArrayUtils.Resize(this.Capacity - 1, ref this.innerArray, resizeWithOffset: false);
+                System.Array.Resize(ref this.innerArray, this.Capacity);
 
             }
         }
@@ -276,10 +297,10 @@
         public ref T this[int index] {
             [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
             get {
-                return ref this.innerArray.arr[index];
+                return ref this.innerArray[index];
             }
             /*set {
-                this.innerArray.arr[index] = value;
+                this.innerArray[index] = value;
             }*/
         }
 
@@ -287,7 +308,7 @@
             
             if (ListCopyable<T>.isValueType == false) {
 
-                System.Array.Clear(this.innerArray.arr, 0, this.Capacity);
+                System.Array.Clear(this.innerArray, 0, this.Capacity);
 
             }
 
@@ -303,7 +324,7 @@
         }
 
         public void CopyTo(ListCopyable<T> target) {
-            System.Array.Copy(this.innerArray.arr, 0, target.innerArray.arr, 0, this.Count);
+            System.Array.Copy(this.innerArray, 0, target.innerArray, 0, this.Count);
             target.Count = this.Count;
             target.Capacity = this.Capacity;
         }
@@ -311,7 +332,7 @@
         public T[] TrimmedArray {
             get {
                 var ret = new T[this.Count];
-                System.Array.Copy(this.innerArray.arr, ret, this.Count);
+                System.Array.Copy(this.innerArray, ret, this.Count);
                 return ret;
             }
         }
@@ -323,10 +344,10 @@
 
             var output = string.Empty;
             for (var i = 0; i < this.Count - 1; i++) {
-                output += this.innerArray.arr[i] + ", ";
+                output += this.innerArray[i] + ", ";
             }
 
-            return base.ToString() + ": " + output + this.innerArray.arr[this.Count - 1];
+            return base.ToString() + ": " + output + this.innerArray[this.Count - 1];
         }
 
         public struct Enumerator : System.IDisposable, System.Collections.IEnumerator
@@ -379,13 +400,13 @@
         
         System.Collections.Generic.IEnumerator<T> System.Collections.Generic.IEnumerable<T>.GetEnumerator() {
             for (var i = 0; i < this.Count; i++) {
-                yield return this.innerArray.arr[i];
+                yield return this.innerArray[i];
             }
         }
         
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() {
             for (var i = 0; i < this.Count; i++) {
-                yield return this.innerArray.arr[i];
+                yield return this.innerArray[i];
             }
         }
 

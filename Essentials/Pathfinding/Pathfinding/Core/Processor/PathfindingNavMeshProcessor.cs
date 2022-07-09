@@ -1,10 +1,96 @@
-﻿using Unity.Jobs;
+using Unity.Jobs;
 using UnityEngine;
 using ME.ECS.Mathematics;
 
 namespace ME.ECS.Pathfinding {
 
     public struct PathfindingNavMeshProcessor : IPathfindingProcessor {
+        
+        private struct Cache {
+
+            private struct Entry {
+
+                public Tick tick;
+                public int hash;
+
+                public float3 from;
+                public float3 to;
+                public int constraintKey;
+                public Path path;
+
+            }
+            
+            private const int maxCacheSize = 20;
+            private static Entry[] pool = new Entry[Cache.maxCacheSize];
+            private static int currentIndex = 0;
+
+            public static bool Get(in float3 from, in float3 to, int constraintKey, in NavMeshGraph graph, out Path path) {
+
+                path = default;
+
+                if (Cache.GetTick(out var tick) == true && graph != null) {
+                    var hash = graph.lastGraphUpdateHash;
+                    
+                    for (int i = 0; i < Cache.pool.Length; i++) {
+                        ref readonly var entry = ref Cache.pool[i];
+    
+                        if (entry.hash == hash && entry.tick == tick) {
+                            if (math.all(entry.from == from) && math.all(entry.to == to) && entry.constraintKey == constraintKey) {
+                                path = Path.Clone(entry.path);
+    
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            public static void Set(in float3 from, in float3 to, int constraintKey, in NavMeshGraph graph, in Path path) {
+                
+                if (path.result == PathCompleteState.Complete && Cache.GetTick(out var tick) == true && graph != null) {
+
+                    ref var entry = ref Cache.pool[Cache.currentIndex];
+                    
+                    entry.hash = graph.lastGraphUpdateHash;
+                    entry.tick = tick;
+                    entry.from = from;
+                    entry.to = to;
+                    entry.constraintKey = constraintKey;
+                    
+                    entry.path.Recycle();
+                    entry.path = Path.Clone(path);
+
+                    Cache.currentIndex = (Cache.currentIndex + 1) % Cache.maxCacheSize;
+
+                }
+                
+            }
+
+            private static bool GetTick(out Tick tick) {
+                
+                tick = Tick.Invalid;
+                
+                var world = Worlds.currentWorld;
+
+                if (world != null) {
+                    var state = world.GetState();
+
+                    if (state != null) {
+                        tick = state.tick;
+                        return true;
+                    } else {
+                        UnityEngine.Debug.LogError("[Path Cache] world.GetState() == null");
+                    }
+                } else {
+                    UnityEngine.Debug.LogError("[Path Cache] Worlds.currentWorld == null");
+                }
+
+                return false;
+            }
+
+        }
 
         private struct PathInternal {
 
@@ -137,10 +223,15 @@ namespace ME.ECS.Pathfinding {
 
         public Path Run<TMod>(LogLevel pathfindingLogLevel, float3 fromPoint, float3 toPoint, Constraint constraint, Graph graph, TMod pathModifier, int threadIndex = 0,
                               bool burstEnabled = true, bool cacheEnabled = false) where TMod : struct, IPathModifier {
-
-            var path = new Path();
-            var pathResult = new PathInternal();
+            
             var navMeshGraph = (NavMeshGraph)graph;
+
+            if (Cache.Get(fromPoint, toPoint, constraint.GetKey(), navMeshGraph, out var path) == true) {
+                return path;
+            }
+
+            var pathResult = new PathInternal();
+            
 
             var areas = -1;
             if (constraint.checkArea == true) {
@@ -172,7 +263,8 @@ namespace ME.ECS.Pathfinding {
                     pathResults = pathResults,
                     results = results,
                 };
-                job.Schedule().Complete();
+                job.Run();
+                
                 var pathStatus = (UnityEngine.Experimental.AI.PathQueryStatus)pathResults[0];
                 var cornerCount = pathResults[1];
                 pathResults.Dispose();
@@ -181,10 +273,10 @@ namespace ME.ECS.Pathfinding {
 
                     if (cornerCount >= 2) {
 
-                        path.navMeshPoints = PoolListCopyable<Vector3>.Spawn(cornerCount);
+                        path.navMeshPoints = PoolListCopyable<float3>.Spawn(cornerCount);
                         for (var i = 0; i < cornerCount; ++i) {
 
-                            path.navMeshPoints.Add(results[i].position);
+                            path.navMeshPoints.Add((float3)results[i].position);
 
                         }
 
@@ -230,6 +322,9 @@ namespace ME.ECS.Pathfinding {
                     }
 
                 }
+                
+                Cache.Set(fromPoint, toPoint, constraint.GetKey(), navMeshGraph, path);
+                
                 results.Dispose();
                 query.Dispose();
                 return path;
@@ -311,10 +406,10 @@ namespace ME.ECS.Pathfinding {
 
                     if (cornerCount >= 2) {
 
-                        path.navMeshPoints = PoolListCopyable<Vector3>.Spawn(cornerCount);
+                        path.navMeshPoints = PoolListCopyable<float3>.Spawn(cornerCount);
                         for (var i = 0; i < cornerCount; ++i) {
 
-                            path.navMeshPoints.Add(results[i].position);
+                            path.navMeshPoints.Add((float3)results[i].position);
 
                         }
 
@@ -396,6 +491,8 @@ namespace ME.ECS.Pathfinding {
             }
 
             query.Dispose();
+            
+            Cache.Set(fromPoint, toPoint, constraint.GetKey(), navMeshGraph, path);
 
             return path;
 

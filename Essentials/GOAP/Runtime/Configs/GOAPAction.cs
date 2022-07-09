@@ -1,3 +1,12 @@
+#if FIXED_POINT_MATH
+using math = ME.ECS.Mathematics.math;
+using float3 = ME.ECS.Mathematics.float3;
+using tfloat = sfloat;
+#else
+using math = Unity.Mathematics.math;
+using float3 = Unity.Mathematics.float3;
+using tfloat = System.Single;
+#endif
 using UnityEngine;
 
 namespace ME.ECS.Essentials.GOAP {
@@ -8,20 +17,24 @@ namespace ME.ECS.Essentials.GOAP {
         [Tooltip("Larger cost means longer action")]
         [Min(0f)]
         public float cost = 1f;
-        public PreconditionsData preconditions;
+        [UnityEngine.Serialization.FormerlySerializedAsAttribute("preconditions")] public ConditionsData conditions;
         public EffectsData effects;
 
-        private Precondition? preconditionCache;
+        private Condition? conditionCache;
         private Effect? effectsCache;
         private bool isInitialized;
+
+        private GOAPFeature feature;
 
         internal void DoAwake() {
 
             if (this.isInitialized == false) {
 
                 this.isInitialized = true;
+                
+                Worlds.current.GetFeature(out this.feature);
+                
                 this.OnAwake();
-
             }
 
         }
@@ -34,9 +47,9 @@ namespace ME.ECS.Essentials.GOAP {
 
             this.isInitialized = false;
             
-            if (this.preconditionCache.HasValue == true) {
-                this.preconditionCache.Value.Dispose();
-                this.preconditionCache = null;
+            if (this.conditionCache.HasValue == true) {
+                this.conditionCache.Value.Dispose();
+                this.conditionCache = null;
             }
 
             if (this.effectsCache.HasValue == true) {
@@ -46,31 +59,36 @@ namespace ME.ECS.Essentials.GOAP {
             
         }
 
-        public virtual float GetCost(in Entity agent) => this.cost;
+        public virtual bool CanRunPrepare(in Entity agent) => true;
+
+        public virtual tfloat GetCost(in Entity agent) => this.cost;
         
         public virtual bool IsDone(in Entity agent) => true;
         
         public virtual void PerformBegin(in Entity agent) {
-            UnityEngine.Debug.Log("PerformBegin: " + agent + " :: " + this);
+            if(this.feature.showDebug)
+                UnityEngine.Debug.Log("PerformBegin: " + agent + " :: " + this);
         }
 
         public virtual void Perform(in Entity agent) {
-            UnityEngine.Debug.Log("Perform: " + agent + " :: " + this);
+            if(this.feature.showDebug)
+                UnityEngine.Debug.Log("Perform: " + agent + " :: " + this);
         }
 
         public virtual void OnComplete(in Entity agent) {
-            UnityEngine.Debug.Log("OnComplete: " + agent + " :: " + this);
+            if(this.feature.showDebug)
+                UnityEngine.Debug.Log("OnComplete: " + agent + " :: " + this);
         }
 
-        public Precondition GetPreconditions(Unity.Collections.Allocator allocator) {
+        public Condition GetPreconditions(Unity.Collections.Allocator allocator) {
 
-            if (this.preconditionCache.HasValue == false) {
+            if (this.conditionCache.HasValue == false) {
                 
-                this.preconditionCache = Precondition.CreateFromData(this.preconditions).Push(Unity.Collections.Allocator.Persistent);
+                this.conditionCache = Condition.CreateFromData(this.conditions).Push(Unity.Collections.Allocator.Persistent);
                 
             }
 
-            return new Precondition(this.preconditionCache.Value, allocator);
+            return new Condition(this.conditionCache.Value, allocator);
 
         }
 

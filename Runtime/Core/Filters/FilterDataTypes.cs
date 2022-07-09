@@ -126,6 +126,7 @@ namespace ME.ECS {
 
         public bool Apply(in Entity entity) {
             
+            if (this.component == null) return false;
             if (ComponentTypesRegistry.allTypeId.TryGetValue(this.component.GetType(), out var dataIndex) == true) {
                 Worlds.current.SetData(in entity, this.component, dataIndex);
                 return true;
@@ -134,6 +135,35 @@ namespace ME.ECS {
             return false;
             
         }
+
+        public bool Remove(in Entity entity) {
+            
+            if (this.component == null) return false;
+            if (ComponentTypesRegistry.allTypeId.TryGetValue(this.component.GetType(), out var dataIndex) == true) {
+                Worlds.current.RemoveData(in entity, dataIndex);
+                return true;
+            }
+
+            return false;
+            
+        }
+        
+        public bool TryRead(in Entity entity, out T component) {
+            
+            component = default;
+
+            if (this.component == null) return false;
+            if (ComponentTypesRegistry.allTypeId.TryGetValue(this.component.GetType(), out var dataIndex) == true) {
+                component = (T)Worlds.current.ReadData(in entity, dataIndex);
+                if (component == null) return false;
+                return true;
+            }
+
+            return false;
+            
+        }
+        
+        
 
     }
 
@@ -154,6 +184,44 @@ namespace ME.ECS {
             
         }
         
+    }
+
+    public class FilterDataTypesLabelsAttribute : PropertyAttribute {
+
+        public string include;
+        public string exclude;
+        
+        public FilterDataTypesLabelsAttribute(string include = "Include", string exclude = "Exclude") {
+
+            this.include = include;
+            this.exclude = exclude;
+
+        }
+        
+    }
+
+    public class FilterDataTypesFoldoutAttribute : PropertyAttribute {
+
+        public bool foldout;
+        
+        public FilterDataTypesFoldoutAttribute(bool foldout) {
+
+            this.foldout = foldout;
+
+        }
+        
+    }
+
+    public class DescriptionAttribute : PropertyAttribute {
+
+        public string text;
+
+        public DescriptionAttribute(string text) {
+            
+            this.text = text;
+            
+        }
+
     }
 
 }

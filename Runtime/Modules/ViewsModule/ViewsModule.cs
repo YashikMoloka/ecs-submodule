@@ -604,7 +604,7 @@ namespace ME.ECS.Views {
 
             this.isRequestsDirty = true;
             this.forceUpdateState = true;
-            this.UpdateRequests();
+            //this.UpdateRequests();
 
             var temp = PoolListCopyable<IView>.Spawn(this.registryPrefabToId.Count);
             foreach (var prefab in this.registryIdToPrefab) {

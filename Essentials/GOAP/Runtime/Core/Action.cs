@@ -1,3 +1,13 @@
+#if FIXED_POINT_MATH
+using math = ME.ECS.Mathematics.math;
+using float3 = ME.ECS.Mathematics.float3;
+using tfloat = sfloat;
+#else
+using math = Unity.Mathematics.math;
+using float3 = Unity.Mathematics.float3;
+using tfloat = System.Single;
+#endif
+
 namespace ME.ECS.Essentials.GOAP {
 
     using Collections;
@@ -10,18 +20,18 @@ namespace ME.ECS.Essentials.GOAP {
             // For planner
             internal int id;
             internal int parent;
-            internal float h;
+            internal tfloat h;
             internal bool isClosed;
             internal SpanArray<int> neighbours;
 
             // Public
             public GOAPGroupId groupId;
-            public float cost;
-            public Precondition preconditions;
+            public tfloat cost;
+            public Condition conditions;
             public Effect effects;
 
             internal readonly bool HasPreconditions(NativeArray<Action.Data> temp, in Action.Data parentAction, NativeHashSet<int> entityState) {
-                return this.preconditions.Has(temp, in parentAction, entityState);
+                return this.conditions.Has(temp, in parentAction, entityState);
             }
 
             internal readonly SpanArray<int> GetNeighbours() {
@@ -43,7 +53,7 @@ namespace ME.ECS.Essentials.GOAP {
 
             public void Dispose() {
                 
-                this.preconditions.Dispose();
+                this.conditions.Dispose();
                 this.effects.Dispose();
                 this.neighbours.Dispose();
                 
@@ -59,7 +69,7 @@ namespace ME.ECS.Essentials.GOAP {
             this.data = new Data() {
                 groupId = groupId,
                 cost = goapAction.GetCost(in agent),
-                preconditions = goapAction.GetPreconditions(allocator),
+                conditions = goapAction.GetPreconditions(allocator),
                 effects = goapAction.GetEffects(allocator),
             };
 
@@ -71,19 +81,20 @@ namespace ME.ECS.Essentials.GOAP {
             
         }
         
-        internal void BuildNeighbours(NativeArray<Action> availableActions) {
+        internal void BuildNeighbours(NativeArray<ActionTemp> availableActions) {
 
             var temp = PoolListCopyable<int>.Spawn(availableActions.Length);
 
             for (int i = 0; i < availableActions.Length; ++i) {
 
                 var action = availableActions[i];
-                if (action.data.id == this.data.id) continue;
+                if (action.canRun == false) continue;
+                if (action.action.data.id == this.data.id) continue;
 
                 // if action has effects which gives us any of precondition list
-                if (this.data.effects.HasAny(action.data.preconditions) == true) {
+                if (this.data.effects.HasAny(action.action.data.conditions) == true) {
 
-                    temp.Add(action.data.id);
+                    temp.Add(action.action.data.id);
 
                 }
 

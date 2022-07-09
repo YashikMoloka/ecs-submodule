@@ -11,8 +11,6 @@ namespace ME.ECS {
 
         [ME.ECS.Serializer.SerializeField]
         internal BufferArraySliced<Component<TComponent>> components;
-        [ME.ECS.Serializer.SerializeField]
-        private long maxVersion;
 
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -32,15 +30,6 @@ namespace ME.ECS {
         public override void Recycle() {
             
             PoolRegistries.Recycle(this);
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public override long GetVersion(in Entity entity) {
-
-            return this.components[entity.id].version;
 
         }
 
@@ -93,21 +82,8 @@ namespace ME.ECS {
                 var v = (long)this.world.GetCurrentTick();
                 ref var data = ref this.components[entity.id];
                 data.version = v;
-                this.maxVersion = (v > this.maxVersion ? v : this.maxVersion);
             }
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public override void UpdateVersion(ref Component<TComponent> bucket) {
-
-            if (AllComponentTypes<TComponent>.isVersioned == true) {
-                bucket.version = this.world.GetCurrentTick();
-                this.maxVersion = (bucket.version > this.maxVersion ? bucket.version : this.maxVersion);
-            }
-
+            
         }
 
         #if INLINE_METHODS
@@ -122,7 +98,6 @@ namespace ME.ECS {
         public override void OnRecycle() {
 
             this.components = this.components.Dispose();
-            this.maxVersion = default;
             base.OnRecycle();
             
         }
@@ -138,26 +113,9 @@ namespace ME.ECS {
 
         }
 
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public override bool Validate(in Entity entity) {
-
-            var resized = ArrayUtils.Resize(entity.id, ref this.components, true);
-            base.Validate(entity);
-            return resized;
-
-        }
-
         public override IComponentBase GetObject(Entity entity) {
 
-            #if WORLD_EXCEPTIONS
-            if (entity.IsAlive() == false) {
-                
-                EmptyEntityException.Throw(entity);
-                
-            }
-            #endif
+            E.IS_ALIVE(in entity);
 
             var index = entity.id;
             ref var bucket = ref this.components[index];
@@ -173,13 +131,7 @@ namespace ME.ECS {
 
         public override bool SetObject(in Entity entity, UnsafeData buffer, StorageType storageType) {
             
-            #if WORLD_EXCEPTIONS
-            if (entity.IsAlive() == false) {
-                
-                EmptyEntityException.Throw(entity);
-                
-            }
-            #endif
+            E.IS_ALIVE(in entity);
 
             return DataBufferUtils.PushSet_INTERNAL(this.world, in entity, this, buffer.Read<TComponent>(), storageType);
 
@@ -187,13 +139,7 @@ namespace ME.ECS {
 
         public override bool SetObject(in Entity entity, IComponentBase data, StorageType storageType) {
 
-            #if WORLD_EXCEPTIONS
-            if (entity.IsAlive() == false) {
-                
-                EmptyEntityException.Throw(entity);
-                
-            }
-            #endif
+            E.IS_ALIVE(in entity);
 
             return DataBufferUtils.PushSet_INTERNAL(this.world, in entity, this, (TComponent)data, storageType);
             
@@ -272,7 +218,6 @@ namespace ME.ECS {
             base.CopyFrom(other);
             var _other = (StructComponents<TComponent>)other;
             ArrayUtils.Copy(in _other.components, ref this.components);
-            this.maxVersion = _other.maxVersion;
 
         }
         

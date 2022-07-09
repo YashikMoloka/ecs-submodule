@@ -37,6 +37,7 @@ namespace ME.ECS.DataConfigs {
     [CreateAssetMenu(menuName = "ME.ECS/Data Config")]
     public partial class DataConfig : ScriptableObject {
 
+        #if !SHARED_COMPONENTS_DISABLED
         public struct SharedData : IStructCopyable<SharedData> {
 
             public Dictionary<int, uint> archetypeToId;
@@ -68,6 +69,7 @@ namespace ME.ECS.DataConfigs {
             }
 
         }
+        #endif
 
         public uint sharedGroupId;
         [SerializeReference]
@@ -88,36 +90,63 @@ namespace ME.ECS.DataConfigs {
         #region Initialization
         public static void InitTypeId() {
             
+            #if !SHARED_COMPONENTS_DISABLED
             WorldUtilities.InitComponentTypeId<SharedData>(isCopyable: true);
+            #endif
             WorldUtilities.InitComponentTypeId<ME.ECS.Collections.IntrusiveHashSetBucketGeneric<ME.ECS.Collections.IntrusiveDictionary<int, int>.Entry>>();
             
         }
 
         public static void Init(ref ME.ECS.StructComponentsContainer structComponentsContainer) {
             
+            #if !SHARED_COMPONENTS_DISABLED
             structComponentsContainer.ValidateCopyable<SharedData>(false);
+            #endif
             structComponentsContainer.Validate<ME.ECS.Collections.IntrusiveHashSetBucketGeneric<ME.ECS.Collections.IntrusiveDictionary<int, int>.Entry>>(false);
 
         }
 
         public static void Init(in Entity entity) {
             
+            #if !SHARED_COMPONENTS_DISABLED
             entity.ValidateDataCopyable<SharedData>(false);
+            #endif
             entity.ValidateData<ME.ECS.Collections.IntrusiveHashSetBucketGeneric<ME.ECS.Collections.IntrusiveDictionary<int, int>.Entry>>(false);
 
         }
         #endregion
 
         #region Public API
+        public static void AddSource(in Entity entity, DataConfig config) {
+            
+            #if !STATIC_API_DISABLED
+            if (entity.Has<SourceConfig>() == true) {
+                
+                // We already has SourceConfig onto this entity,
+                // so need to add config's list
+                ref var configs = ref entity.Get<SourceConfigs>();
+                if (configs.configs == null) configs.configs = PoolListCopyable<DataConfig>.Spawn(2);
+                configs.configs.Add(config);
+
+            } else
+            #endif
+            {
+
+                entity.Set(new SourceConfig() {
+                    config = config,
+                });
+
+            }
+            
+        }
+
         public virtual void Apply(in Entity entity, bool overrideIfExist = true) {
 
             //this.Reset();
             this.Prewarm();
 
-            entity.Set(new SourceConfig() {
-                config = this,
-            });
-
+            AddSource(in entity, this);
+            
             var world = Worlds.currentWorld;
             for (int i = 0; i < this.removeStructComponents.Length; ++i) {
 
@@ -145,8 +174,10 @@ namespace ME.ECS.DataConfigs {
                     initializable.Initialize(in entity);
                     
                 }
+
                 if (this.structComponents[i] is IComponentStatic) continue;
                 
+                #if !SHARED_COMPONENTS_DISABLED
                 var isShared = (this.structComponents[i] is IComponentShared);
                 if (isShared == true) { // is shared?
 
@@ -160,7 +191,9 @@ namespace ME.ECS.DataConfigs {
 
                     }
 
-                } else {
+                } else
+                #endif
+                {
 
                     if (overrideIfExist == true || world.HasDataBit(in entity, dataIndex) == false) {
 

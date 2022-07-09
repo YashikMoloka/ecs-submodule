@@ -1,3 +1,12 @@
+#if FIXED_POINT_MATH
+using math = ME.ECS.Mathematics.math;
+using float3 = ME.ECS.Mathematics.float3;
+using tfloat = sfloat;
+#else
+using math = Unity.Mathematics.math;
+using float3 = Unity.Mathematics.float3;
+using tfloat = System.Single;
+#endif
 using System.Collections.Generic;
 using ME.ECS.Collections;
 using Unity.Collections;
@@ -5,9 +14,16 @@ using Unity.Jobs;
 
 namespace ME.ECS.Essentials.GOAP {
 
+    public struct ActionTemp {
+
+        public Action action;
+        public bool canRun;
+
+    }
+
     public struct Planner {
 
-        public static Plan GetPlan(World world, NativeArray<Action> actions, Goal goal, in Entity entity) {
+        public static Plan GetPlan(World world, NativeArray<ActionTemp> actions, Goal goal, in Entity entity) {
 
             var plan = new Plan() {
                 planStatus = PathStatus.NotCalculated,
@@ -33,29 +49,31 @@ namespace ME.ECS.Essentials.GOAP {
                 }
             }
             
-            var temp = new NativeArray<Action.Data>(actions.Length, Allocator.TempJob);
+            var graph = new NativeArray<Action.Data>(actions.Length, Allocator.TempJob);
             for (int i = 0; i < actions.Length; ++i) {
 
                 ref var action = ref actions.GetRef(i);
-                action.data.id = i;
-                action.data.parent = -1;
+                action.action.data.id = i;
+                action.action.data.parent = -1;
 
             }
 
             for (int i = 0; i < actions.Length; ++i) {
 
                 ref var action = ref actions.GetRef(i);
-                action.BuildNeighbours(actions);
-                temp[i] = action.data;
+                if (action.canRun == true) {
+                    action.action.BuildNeighbours(actions);
+                    graph[i] = action.action.data;
+                }
 
             }
 
-            var bestPath = Planner.GetBestPath(temp, goal, entityState, entityStateData);
+            var bestPath = Planner.GetBestPath(graph, goal, entityState, entityStateData);
             if (bestPath.pathStatus == PathStatus.Success) {
 
                 plan.actions = PoolArray<Action>.Spawn(bestPath.actions.Length);
                 for (int i = 0; i < plan.actions.Length; ++i) {
-                    plan.actions[i] = actions[bestPath.actions[i]];
+                    plan.actions[i] = actions[bestPath.actions[i]].action;
                 }
                 bestPath.actions.Dispose();
 
@@ -73,7 +91,7 @@ namespace ME.ECS.Essentials.GOAP {
                 item.Dispose();
             }
             entityStateData.Dispose();
-            temp.Dispose();
+            graph.Dispose();
 
             return plan;
 
@@ -88,7 +106,7 @@ namespace ME.ECS.Essentials.GOAP {
                 entityState = entityState,
                 entityStateData = entityStateData,
                 result = result,
-            }.Schedule().Complete();
+            }.Run();
             var res = result[0];
             result.Dispose();
             return res;
@@ -97,7 +115,7 @@ namespace ME.ECS.Essentials.GOAP {
 
         private struct Path {
 
-            public float cost;
+            public tfloat cost;
             public SpanArray<int> actions;
             public PathStatus pathStatus;
 
@@ -120,9 +138,9 @@ namespace ME.ECS.Essentials.GOAP {
                 for (int i = 0; i < this.temp.Length; ++i) {
 
                     var action = this.temp[i];
-                    if (action.preconditions.Has(this.entityState) == true &&
-                        action.preconditions.HasData(this.entityStateData) == true &&
-                        action.preconditions.HasNoData(this.entityStateData) == true) {
+                    if (action.conditions.Has(this.entityState) == true &&
+                        action.conditions.HasData(this.entityStateData) == true &&
+                        action.conditions.HasNoData(this.entityStateData) == true) {
 
                         // We have found start action
                         var result = Planner.Traverse(bestPath.cost, this.temp, this.goal, action, this.entityState);
@@ -141,7 +159,7 @@ namespace ME.ECS.Essentials.GOAP {
 
         }
         
-        private static Path Traverse(float prevCost, NativeArray<Action.Data> temp, Goal goal, Action.Data startAction, NativeHashSet<int> entityState) {
+        private static Path Traverse(tfloat prevCost, NativeArray<Action.Data> temp, Goal goal, Action.Data startAction, NativeHashSet<int> entityState) {
 
             for (int i = 0; i < temp.Length; ++i) {
 

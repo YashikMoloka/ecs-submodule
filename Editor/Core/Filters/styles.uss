@@ -9,7 +9,38 @@
     align-self: center;
     margin-top: 8px;
     margin-bottom: 8px;
-    background-color: #444;
+    background-color: rgba(128, 128, 128, 0.5);
+}
+
+.filter-data-container, .component-data-container {
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 0, 0, 0.05);
+    margin-bottom: 10px;
+    margin-top: 4px;
+}
+
+.foldout-description {
+    font-size: 10px;
+    padding-right: 8px;
+    -unity-font-style: normal;
+    align-self: center;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.description {
+    font-size: 10px;
+    -unity-font-style: normal;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 2px 14px;
+}
+
+.no-data-label {
+    margin: 10px;
+    -unity-font-style: normal;
+    -unity-text-align: middle-left;
+    width: 100%;
 }
 
 /*
@@ -17,10 +48,6 @@
  */
 
 .component-data-container {
-    border-radius: 5px;
-    border-width: 1px;
-    border-color: rgba(0, 0, 0, 0.2);
-    background-color: rgba(0, 0, 0, 0.05);
 }
 
 .component-data-container .header {
@@ -31,6 +58,8 @@
 .component-data-container .content {
     background-color: rgba(0, 0, 0, 0.1);
     border-radius: 5px;
+    border-top-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 .component-data-container .data-label {
@@ -41,11 +70,6 @@
 .component-data-container .data {
     margin: 10px;
     -unity-font-style: bold;
-}
-
-.component-data-container .no-data-label {
-    margin: 10px;
-    margin-bottom: 2px;
 }
 
 .component-data-container .no-data-type-container {
@@ -72,11 +96,6 @@
     FilterDataTypes, FilterDataTypesOptional
  */
 .filter-data-container {
-    border-radius: 5px;
-    border-width: 1px;
-    border-color: rgba(0, 0, 0, 0.2);
-    background-color: rgba(0, 0, 0, 0.05);
-    margin-bottom: 4px;
 }
 
 .filter-data-container .content {
@@ -93,8 +112,8 @@
     -unity-font-style: bold;
     font-size: 8px;
     padding: 3px 10px 3px 10px;
-    color: rgba(255, 255, 255, 0.3);
-    border-color: rgba(0, 0, 0, 0.2);
+    color: rgba(255, 255, 255, 0.6);
+    border-color: rgba(255, 255, 255, 0.1);
     border-top-width: 1px;
     border-top-left-radius: 5px;
     border-top-right-radius: 5px;
@@ -111,18 +130,12 @@
 
 .filter-data-container .content-include {
     background-color: rgba(0, 255, 0, 0.03);
-    border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
-    border-bottom-left-radius: 0px;
-    border-bottom-right-radius: 0px;
+    border-radius: 5px 5px 0px 0px;
 }
 
 .filter-data-container .content-exclude {
     background-color: rgba(255, 0, 0, 0.03);
-    border-top-left-radius: 0px;
-    border-top-right-radius: 0px;
-    border-bottom-left-radius: 5px;
-    border-bottom-right-radius: 5px;
+    border-radius: 0px 0px 5px 5px;
 }
 
 .filter-data-container .data-container-layout {
@@ -137,10 +150,10 @@
     border-color: rgba(0, 0, 0, 0.1);
 }
 .filter-data-container .data-container.even {
-    background-color: rgba(50, 50, 50, 1.05);
+    background-color: rgba(50, 50, 50, 0.05);
 }
 .filter-data-container .data-container.odd {
-    background-color: rgba(52, 52, 52, 1.02);
+    background-color: rgba(52, 52, 52, 0.02);
     border-bottom-color: rgba(255, 255, 255, 0.05);
 }
 
@@ -177,11 +190,6 @@
     -unity-font-style: normal;
 }
 
-.filter-data-container .no-data-label {
-    margin: 10px;
-    margin-bottom: 2px;
-}
-
 .filter-data-container .no-data-type-container {
     margin: 10px;
     margin-top: 2px;
@@ -200,4 +208,17 @@
 .filter-data-container .button-container {
     margin: 10px;
     margin-top: 2px;
+}
+
+.filter-data-container .header .unity-foldout__content {
+    margin: 0px;
+    padding: 0px;
+}
+
+.filter-data-container .header.unity-foldout {
+    padding: 0px;
+}
+
+.filter-data-container .header.unity-foldout .unity-toggle__input {
+    padding: 2px 14px;
 }

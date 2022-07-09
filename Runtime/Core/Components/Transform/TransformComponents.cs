@@ -15,7 +15,7 @@
     public struct Nodes : IComponent, IVersioned {
 
         public ME.ECS.Collections.IntrusiveList items;
-
+        
     }
 
 }

@@ -1,4 +1,6 @@
 ﻿
+using System.Reflection;
+
 namespace ME.ECSEditor {
 
     using ME.ECS;
@@ -29,6 +31,48 @@ namespace ME.ECSEditor {
 
         }
 
+        private string GetTooltip(SerializedProperty property) {
+            
+            #if UNITY_2021_3_OR_NEWER || UNITY_2022_1_OR_NEWER
+            var text = property.tooltip;
+            #else
+            var text = this.fieldInfo.GetCustomAttribute<UnityEngine.TooltipAttribute>(false)?.tooltip;
+            #endif
+
+            return text;
+            
+        }
+        
+        private string GetDescription(SerializedProperty property) {
+            
+            var text = this.fieldInfo.GetCustomAttribute<DescriptionAttribute>(true)?.text;
+            return text;
+            
+        }
+
+        private bool GetFoldoutState(SerializedProperty prop) {
+            var key = "FieldDataTypes.Foldouts." + prop.propertyPath;
+            return EditorPrefs.GetBool(key, false);
+        }
+
+        private void SetFoldoutState(SerializedProperty prop, bool state) {
+            var key = "FieldDataTypes.Foldouts." + prop.propertyPath;
+            EditorPrefs.SetBool(key, state);
+        }
+
+        private void UpdateLabel(SerializedProperty property, VisualElement foldout, string withLabel, string withoutLabel) {
+            
+            var toggle = foldout.Q(className: "unity-foldout__toggle");
+            if (toggle != null) {
+                
+                var label = foldout.Q(className: "foldout-description") as Label ?? new Label();
+                label.text = $"{withLabel}: {property.FindPropertyRelative("with").arraySize}, {withoutLabel}: {property.FindPropertyRelative("without").arraySize}";
+                label.AddToClassList("foldout-description");
+                toggle.Add(label);
+                
+            }
+        }
+
         public override VisualElement CreatePropertyGUI(SerializedProperty property) {
 
             var attr = this.GetAttr();
@@ -39,13 +83,42 @@ namespace ME.ECSEditor {
 
             }
 
+            var labels = this.fieldInfo.GetCustomAttribute<FilterDataTypesLabelsAttribute>();
+            if (labels == null) labels = new FilterDataTypesLabelsAttribute();
+
+            var foldoutState = this.fieldInfo.GetCustomAttribute<FilterDataTypesFoldoutAttribute>();
+            if (foldoutState == null) foldoutState = new FilterDataTypesFoldoutAttribute(true);
+
             var container = new VisualElement();
             container.styleSheets.Add(EditorUtilities.Load<StyleSheet>("Editor/Core/Filters/styles.uss", isRequired: true));
             container.AddToClassList("filter-data-container");
-            var header = new Label(property.displayName);
-            header.AddToClassList("header");
-            container.Add(header);
+            VisualElement foldoutContainer;
+            if (foldoutState.foldout == true) {
+                var foldout = new Foldout();
+                foldout.value = this.GetFoldoutState(property);
+                var copy = property.Copy();
+                foldout.RegisterValueChangedCallback((evt) => { this.SetFoldoutState(copy, evt.newValue); });
+                foldout.text = $"{property.displayName}";
+                foldout.tooltip = this.GetTooltip(property);
+                foldout.AddToClassList("header");
+                foldoutContainer = foldout;
+            } else {
+                foldoutContainer = new VisualElement();
+            }
+            container.Add(foldoutContainer);
 
+            var descr = this.GetDescription(property);
+            if (string.IsNullOrEmpty(descr) == false) {
+                
+                var description = new Label();
+                description.text = descr;
+                description.AddToClassList("description");
+                foldoutContainer.contentContainer.Add(description);
+                
+            }
+
+            this.UpdateLabel(property, foldoutContainer, labels.include.ToUpper(), labels.exclude.ToUpper());
+            
             var contentContainer = new VisualElement();
             contentContainer.AddToClassList("content");
             {
@@ -53,7 +126,7 @@ namespace ME.ECSEditor {
                 var usedComponents = new HashSet<System.Type>();
                 var content = new VisualElement();
                 content.AddToClassList("content-include");
-                this.Redraw("Include:", "with", this.GetSubName(), content, property, usedComponents, list, drawType);
+                this.Redraw(foldoutContainer, labels, labels.include.ToUpper(), "with", this.GetSubName(), content, property, usedComponents, list, drawType);
                 contentContainer.Add(content);
             }
             {
@@ -61,16 +134,18 @@ namespace ME.ECSEditor {
                 var usedComponents = new HashSet<System.Type>();
                 var content = new VisualElement();
                 content.AddToClassList("content-exclude");
-                this.Redraw("Exclude:", "without", this.GetSubName(), content, property, usedComponents, list, drawType);
+                this.Redraw(foldoutContainer, labels, labels.exclude.ToUpper(), "without", this.GetSubName(), content, property, usedComponents, list, drawType);
                 contentContainer.Add(content);
             }
-            container.Add(contentContainer);
+            foldoutContainer.contentContainer.Add(contentContainer);
 
             return container;
 
         }
         
-        private void Redraw(string caption, string name, string subName, VisualElement container, SerializedProperty property, HashSet<System.Type> usedComponents, List<System.Type> list, ComponentDataTypeAttribute.Type drawType) {
+        private void Redraw(VisualElement foldout, FilterDataTypesLabelsAttribute labels, string caption, string name, string subName, VisualElement container, SerializedProperty property, HashSet<System.Type> usedComponents, List<System.Type> list, ComponentDataTypeAttribute.Type drawType) {
+
+            this.UpdateLabel(property, foldout, labels.include.ToUpper(), labels.exclude.ToUpper());
 
             container.Clear();
 
@@ -106,7 +181,7 @@ namespace ME.ECSEditor {
                 dataContainer.Add(hor);
                 
                 var optional = registryBase.FindPropertyRelative("optional");
-                if (optional != null) {
+                if (optional != null && type != null) {
 
                     var hasFields = type.GetFields().Length > 0;
 
@@ -121,7 +196,7 @@ namespace ME.ECSEditor {
                             var prop = obj.FindProperty(property.propertyPath);
                             optional.boolValue = evt.newValue;
                             obj.ApplyModifiedProperties();
-                            this.Redraw(caption, name, subName, container, prop, usedComponents, list, drawType);
+                            this.Redraw(foldout, labels, caption, name, subName, container, prop, usedComponents, list, drawType);
                         });
                         hor.Add(toggle);
                         
@@ -150,6 +225,7 @@ namespace ME.ECSEditor {
                 if (type != null) {
 
                     usedComponents.Add(type);
+                    list.Add(type);
 
                     {
                         var label = GUILayoutExt.GetStringCamelCaseSpace(type.Name);
@@ -193,7 +269,18 @@ namespace ME.ECSEditor {
 
                 } else {
 
-                    var noDataLabel = new Label("Unknown is missing.");
+                    if (string.IsNullOrEmpty(registry.managedReferenceFullTypename) == true) {
+                        
+                        var obj = property.serializedObject;
+                        obj.Update();
+                        subProperty.DeleteArrayElementAtIndex(i);
+                        obj.ApplyModifiedProperties();
+                        --size;
+                        continue;
+                        
+                    }
+                    
+                    var noDataLabel = new Label($"Component {registry.managedReferenceFullTypename} is missing");
                     noDataLabel.AddToClassList("no-data-label");
                     hor.Add(noDataLabel);
                     
@@ -243,7 +330,7 @@ namespace ME.ECSEditor {
 
                     obj.ApplyModifiedProperties();
 
-                    this.Redraw(caption, name, subName, container, prop, usedComponents, list, drawType);
+                    this.Redraw(foldout, labels, caption, name, subName, container, prop, usedComponents, list, drawType);
 
                 }, showRuntime: true, caption: "Edit Components", where: (type) => { return compType.IsAssignableFrom(type); });
                 innerContainer.Add(button);
