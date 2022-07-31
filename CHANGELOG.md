@@ -1,5 +1,39 @@
-# Version 2.6
+# Version 2.7
+* Runtime.Serialization: MemoryAllocator serializer added
+* Tests.Tests: 
+  * MemoryAllocator List tests added
+  * MemoryAllocator Dictionary tests added
+  * MemoryAllocator EquatableDictionary tests added
+  * MemoryAllocator EquatableHashSet tests added
+  * MemoryAllocator NativeHashSet tests added
+  * MemoryAllocator HashSet tests added
+  * MemoryAllocator Stack tests added
+  * MemoryAllocator Queue tests added
 * Runtime.Core:
+  * ConfigId<> added to store DataConfig assets in components 
+  * ViewId<> added to store view assets in components
+  * IComponentDisposable deprecated
+  * State refactoring to be ready for allocator
+  * Collections refactoring
+  * MemoryAllocator List collection added
+  * MemoryAllocator Dictionary collection added
+  * MemoryAllocator EquatableDictionary collection added
+  * MemoryAllocator EquatableHashSet collection added
+  * MemoryAllocator NativeHashSet collection added
+  * MemoryAllocator HashSet collection added
+  * MemoryAllocator Stack collection added
+  * MemoryAllocator Queue collection added
+  * ENTITY_API_VERSION1_DEPRECATED removed
+  * Legacy Filters removed
+
+11/07/2022
+# Version 2.6
+* Runtime.Core: 
+  * FILTERS_LAMBDA_DISABLED define added
+  * Internal BufferUtils refactoring
+  * Components Tag storage implemented
+* Runtime.Core:
+  * States prewarming enabled
   * STATIC_API_DISABLED define added
   * Static Entity API implemented
 

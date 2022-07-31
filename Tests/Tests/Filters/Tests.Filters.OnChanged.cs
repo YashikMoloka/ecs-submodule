@@ -1,4 +1,3 @@
-#if !FILTERS_STORAGE_LEGACY
 namespace ME.ECS.Tests {
 
     public class Tests_Filters_OnChanged {
@@ -86,7 +85,7 @@ namespace ME.ECS.Tests {
                 WorldUtilities.InitComponentTypeId<TestComponent>(false, isVersioned: true, isBlittable: true);
                 ComponentsInitializerWorld.Setup((e) => {
                             
-                    e.ValidateDataBlittable<TestComponent>();
+                    e.ValidateDataUnmanaged<TestComponent>();
                             
                 });
                 
@@ -102,4 +101,3 @@ namespace ME.ECS.Tests {
     }
 
 }
-#endif

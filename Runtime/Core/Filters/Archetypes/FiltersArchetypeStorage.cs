@@ -2,16 +2,17 @@
 #define INLINE_METHODS
 #endif
 
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ME.ECS.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.IL2CPP.CompilerServices;
 using Il2Cpp = Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute;
 
-#if !FILTERS_STORAGE_LEGACY
 namespace ME.ECS.FiltersArchetype {
-
+    
+    using Collections.V3;
+    using Collections.MemoryAllocator;
+    
     [Il2Cpp(Option.NullChecks, false)]
     [Il2Cpp(Option.ArrayBoundsChecks, false)]
     [Il2Cpp(Option.DivideByZeroChecks, false)]
@@ -22,64 +23,6 @@ namespace ME.ECS.FiltersArchetype {
         [Il2Cpp(Option.DivideByZeroChecks, false)]
         public struct Archetype {
 
-            [Il2Cpp(Option.NullChecks, false)]
-            [Il2Cpp(Option.ArrayBoundsChecks, false)]
-            [Il2Cpp(Option.DivideByZeroChecks, false)]
-            public struct CopyData : IArrayElementCopy<Archetype> {
-
-                #if INLINE_METHODS
-                [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-                #endif
-                public void Copy(in Archetype @from, ref Archetype to) {
-
-                    to.CopyFrom(in from);
-
-                }
-
-                #if INLINE_METHODS
-                [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-                #endif
-                public void Recycle(ref Archetype item) {
-
-                    item.Recycle();
-                    item = default;
-
-                }
-
-            }
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            private void CopyFrom(in Archetype other) {
-
-                this.index = other.index;
-                ArrayUtils.Copy(other.componentIds, ref this.componentIds);
-                ArrayUtils.Copy(other.entitiesArr, ref this.entitiesArr);
-                
-                ArrayUtils.Copy(other.edgesToAdd, ref this.edgesToAdd);
-                ArrayUtils.Copy(other.edgesToRemove, ref this.edgesToRemove);
-                ArrayUtils.Copy(other.components, ref this.components);
-                
-                ArrayUtils.Copy(other.entitiesContains, ref this.entitiesContains);
-
-            }
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Recycle() {
-
-                this.index = default;
-                PoolDictionaryInt<Info>.Recycle(ref this.components);
-                PoolListCopyable<int>.Recycle(ref this.componentIds);
-                PoolListCopyable<int>.Recycle(ref this.entitiesArr);
-                PoolDictionaryInt<int>.Recycle(ref this.edgesToAdd);
-                PoolDictionaryInt<int>.Recycle(ref this.edgesToRemove);
-                PoolHashSetCopyable<int>.Recycle(ref this.entitiesContains);
-
-            }
-
             public struct Info {
 
                 public int index; // Index in list
@@ -87,22 +30,22 @@ namespace ME.ECS.FiltersArchetype {
             }
 
             public int index;
-            public DictionaryInt<Info> components; // Contains componentId => Info index
-            public ListCopyable<int> componentIds; // Contains raw list of component ids
-            public ListCopyable<int> entitiesArr; // Contains raw unsorted list of entities
-            public HashSetCopyable<int> entitiesContains;
-            public DictionaryInt<int> edgesToAdd; // Contains edges to move from this archetype to another
-            public DictionaryInt<int> edgesToRemove; // Contains edges to move from this archetype to another
+            public Dictionary<int, Info> components; // Contains componentId => Info index
+            public List<int> componentIds; // Contains raw list of component ids
+            public List<int> entitiesArr; // Contains raw unsorted list of entities
+            public HashSet<int> entitiesContains;
+            public Dictionary<int, int> edgesToAdd; // Contains edges to move from this archetype to another
+            public Dictionary<int, int> edgesToRemove; // Contains edges to move from this archetype to another
             
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            internal readonly bool HasAnyPair(ListCopyable<FilterInternalData.Pair2> list) {
+            internal readonly bool HasAnyPair(in MemoryAllocator allocator, ListCopyable<FilterInternalData.Pair2> list) {
 
                 for (int i = 0, cnt = list.Count; i < cnt; ++i) {
                     var pair = list[i];
-                    if (this.Has(pair.t1) == false &&
-                        this.Has(pair.t2) == false) {
+                    if (this.Has(in allocator, pair.t1) == false &&
+                        this.Has(in allocator, pair.t2) == false) {
                         return false;
                     }
                 }
@@ -114,13 +57,13 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            internal readonly bool HasAnyPair(ListCopyable<FilterInternalData.Pair3> list) {
+            internal readonly bool HasAnyPair(in MemoryAllocator allocator, ListCopyable<FilterInternalData.Pair3> list) {
 
                 for (int i = 0, cnt = list.Count; i < cnt; ++i) {
                     var pair = list[i];
-                    if (this.Has(pair.t1) == false &&
-                        this.Has(pair.t2) == false &&
-                        this.Has(pair.t3) == false) {
+                    if (this.Has(in allocator, pair.t1) == false &&
+                        this.Has(in allocator, pair.t2) == false &&
+                        this.Has(in allocator, pair.t3) == false) {
                         return false;
                     }
                 }
@@ -132,14 +75,14 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            internal readonly bool HasAnyPair(ListCopyable<FilterInternalData.Pair4> list) {
+            internal readonly bool HasAnyPair(in MemoryAllocator allocator, ListCopyable<FilterInternalData.Pair4> list) {
 
                 for (int i = 0, cnt = list.Count; i < cnt; ++i) {
                     var pair = list[i];
-                    if (this.Has(pair.t1) == false &&
-                        this.Has(pair.t2) == false &&
-                        this.Has(pair.t3) == false &&
-                        this.Has(pair.t4) == false) {
+                    if (this.Has(in allocator, pair.t1) == false &&
+                        this.Has(in allocator, pair.t2) == false &&
+                        this.Has(in allocator, pair.t3) == false &&
+                        this.Has(in allocator, pair.t4) == false) {
                         return false;
                     }
                 }
@@ -149,20 +92,20 @@ namespace ME.ECS.FiltersArchetype {
             }
 
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            public readonly bool Has(int componentId) {
+            public readonly bool Has(in MemoryAllocator allocator, int componentId) {
 
-                return this.components.ContainsKey(componentId);
+                return this.components.ContainsKey(in allocator, componentId);
 
             }
 
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            public readonly bool HasAll(ListCopyable<int> componentIds) {
+            public readonly bool HasAll(in MemoryAllocator allocator, ListCopyable<int> componentIds) {
 
                 for (int i = 0, cnt = componentIds.Count; i < cnt; ++i) {
                     var item = componentIds[i];
-                    if (this.components.ContainsKey(item) == false) {
+                    if (this.components.ContainsKey(in allocator, item) == false) {
                         return false;
                     }
                 }
@@ -174,15 +117,13 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            public readonly bool HasNotAll(ListCopyable<int> componentIds) {
+            public readonly bool HasAll(in MemoryAllocator allocator, List<int> componentIds) {
 
-                for (int i = 0, cnt = componentIds.Count; i < cnt; ++i) {
-                    
-                    var item = componentIds[i];
-                    if (this.components.ContainsKey(item) == true) {
+                for (int i = 0, cnt = componentIds.Count(in allocator); i < cnt; ++i) {
+                    var item = componentIds[in allocator, i];
+                    if (this.components.ContainsKey(in allocator, item) == false) {
                         return false;
                     }
-
                 }
 
                 return true;
@@ -192,16 +133,34 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            public readonly bool HasAllExcept(ListCopyable<int> componentIds, int componentId) {
+            public readonly bool HasNotAll(in MemoryAllocator allocator, ListCopyable<int> componentIds) {
 
                 for (int i = 0, cnt = componentIds.Count; i < cnt; ++i) {
                     
                     var item = componentIds[i];
+                    if (this.components.ContainsKey(in allocator, item) == true) {
+                        return false;
+                    }
+
+                }
+
+                return true;
+
+            }
+
+            #if INLINE_METHODS
+            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
+            #endif
+            public readonly bool HasAllExcept(in MemoryAllocator allocator, List<int> componentIds, int componentId) {
+
+                for (int i = 0, cnt = componentIds.Count(in allocator); i < cnt; ++i) {
+                    
+                    var item = componentIds[in allocator, i];
                     if (item == componentId) {
                         continue;
                     }
 
-                    if (this.components.ContainsKey(item) == false) {
+                    if (this.components.ContainsKey(in allocator, item) == false) {
                         return false;
                     }
 
@@ -214,92 +173,93 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            public Archetype Set(ref FiltersArchetypeStorage storage, Entity entity, int componentId) {
+            public Archetype Set(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storage, Entity entity, int componentId) {
 
-                if (this.Has(componentId) == true) {
+                if (this.Has(in allocator, componentId) == true) {
                     return this;
                 }
 
                 // Remove entity from current archetype
-                storage.RemoveEntityFromArch(ref this, entity.id);
+                storage.RemoveEntityFromArch(ref allocator, ref this, entity.id);
 
                 // Find the edge to move
-                ref var edge = ref this.edgesToAdd.GetValue(componentId, out var exist);
+                ref var edge = ref this.edgesToAdd.GetValue(ref allocator, componentId, out var exist);
                 if (exist == false) {
-                    edge = Archetype.CreateAdd(ref storage, this.index, this.componentIds, this.components, componentId);
+                    edge = Archetype.CreateAdd(ref allocator, ref storage, this.index, this.componentIds, this.components, componentId);
                 }
                 
                 {
-                    ref var arch = ref storage.allArchetypes[edge];
-                    storage.AddEntityToArch(ref arch, entity.id);
+                    ref var arch = ref storage.allArchetypes[in allocator, edge];
+                    storage.AddEntityToArch(ref allocator, ref arch, entity.id);
                 }
 
                 // Return the new archetype we are moved to
-                return storage.allArchetypes[edge];
+                return storage.allArchetypes[in allocator, edge];
 
             }
 
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            public Archetype Remove(ref FiltersArchetypeStorage storage, Entity entity, int componentId) {
+            public Archetype Remove(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storage, Entity entity, int componentId) {
 
-                if (this.Has(componentId) == false) {
+                if (this.Has(in allocator, componentId) == false) {
                     return this;
                 }
 
                 // Remove entity from current archetype
-                storage.RemoveEntityFromArch(ref this, entity.id);
+                storage.RemoveEntityFromArch(ref allocator, ref this, entity.id);
 
                 // Find the edge to move
-                ref var edge = ref this.edgesToRemove.GetValue(componentId, out var exist);
+                ref var edge = ref this.edgesToRemove.GetValue(ref allocator, componentId, out var exist);
                 if (exist == false) {
-                    edge = Archetype.CreateRemove(ref storage, this.index, this.componentIds, this.components, componentId);
+                    edge = Archetype.CreateRemove(ref allocator, ref storage, this.index, this.componentIds, this.components, componentId);
                 }
 
                 {
-                    ref var arch = ref storage.allArchetypes[edge];
-                    storage.AddEntityToArch(ref arch, entity.id);
+                    ref var arch = ref storage.allArchetypes[in allocator, edge];
+                    storage.AddEntityToArch(ref allocator, ref arch, entity.id);
                 }
 
                 // Return the new archetype we are moved to
-                return storage.allArchetypes[edge];
+                return storage.allArchetypes[in allocator, edge];
 
             }
 
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            internal static int CreateAdd(ref FiltersArchetypeStorage storage, int node, ListCopyable<int> componentIds, DictionaryInt<Info> components, int componentId) {
+            private static int CreateAdd(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storage, int node, in List<int> componentIds, in Dictionary<int, Info> components, int componentId) {
 
-                if (storage.TryGetArchetypeAdd(componentIds, componentId, out var ar) == true) {
+                if (storage.TryGetArchetypeAdd(ref allocator, componentIds, componentId, out var ar) == true) {
                     return ar;
                 }
 
                 var arch = new Archetype() {
-                    edgesToAdd = PoolDictionaryInt<int>.Spawn(16),
-                    edgesToRemove = PoolDictionaryInt<int>.Spawn(16),
-                    entitiesArr = PoolListCopyable<int>.Spawn(16),
-                    entitiesContains = PoolHashSetCopyable<int>.Spawn(16),
-                    componentIds = PoolListCopyable<int>.Spawn(componentIds.Count + 1),
-                    components = PoolDictionaryInt<Info>.Spawn(components.Count + 1),
+                    edgesToAdd = new Dictionary<int, int>(ref allocator, 16),
+                    edgesToRemove = new Dictionary<int, int>(ref allocator, 16),
+                    entitiesArr = new List<int>(ref allocator, 16),
+                    entitiesContains = new HashSet<int>(ref allocator, 16),
+                    componentIds = new List<int>(ref allocator, componentIds.Count(in allocator) + 1),
+                    components = new Dictionary<int, Info>(ref allocator, components.Count(in allocator) + 1),
                 };
-                arch.components.CopyFrom(components);
-                
-                arch.componentIds.AddRange(componentIds);
-                storage.isArchetypesDirty = true;
-                var idx = storage.allArchetypes.Count;
-                arch.index = idx;
-                storage.dirtyArchetypes.Add(idx);
-                storage.allArchetypes.Add(arch);
-                arch.components.Add(componentId, new Info() {
-                    index = arch.componentIds.Count,
+                arch.components.CopyFrom(ref allocator, components);
+                arch.componentIds.AddRange(ref allocator, componentIds);
+                arch.components.Add(ref allocator, componentId, new Info() {
+                    index = arch.componentIds.Count(in allocator),
                 });
-                arch.componentIds.Add(componentId);
+                arch.componentIds.Add(ref allocator, componentId);
                 if (node >= 0) {
-                    arch.edgesToRemove.Add(componentId, node);
+                    arch.edgesToRemove.Add(ref allocator, componentId, node);
                 }
 
+                storage.isArchetypesDirty = true;
+                var idx = storage.allArchetypes.Count(in allocator);
+                arch.index = idx;
+
+                storage.dirtyArchetypes.Add(ref allocator, idx);
+                storage.allArchetypes.Add(ref allocator, arch);
+                
                 return idx;
 
             }
@@ -307,39 +267,42 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            internal static int CreateRemove(ref FiltersArchetypeStorage storage, int node, ListCopyable<int> componentIds, DictionaryInt<Info> components, int componentId) {
+            private static int CreateRemove(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storage, int node, in List<int> componentIds, in Dictionary<int, Info> components, int componentId) {
 
-                if (storage.TryGetArchetypeRemove(componentIds, componentId, out var ar) == true) {
+                if (storage.TryGetArchetypeRemove(ref allocator, componentIds, componentId, out var ar) == true) {
                     return ar;
                 }
 
                 var arch = new Archetype() {
-                    edgesToAdd = PoolDictionaryInt<int>.Spawn(16),
-                    edgesToRemove = PoolDictionaryInt<int>.Spawn(16),
-                    entitiesArr = PoolListCopyable<int>.Spawn(16),
-                    entitiesContains = PoolHashSetCopyable<int>.Spawn(16),
-                    componentIds = PoolListCopyable<int>.Spawn(componentIds.Count - 1),
-                    components = PoolDictionaryInt<Info>.Spawn(components.Count - 1),
+                    edgesToAdd = new Dictionary<int, int>(ref allocator, 16),
+                    edgesToRemove = new Dictionary<int, int>(ref allocator, 16),
+                    entitiesArr = new List<int>(ref allocator, 16),
+                    entitiesContains = new HashSet<int>(ref allocator, 16),
+                    componentIds = new List<int>(ref allocator, componentIds.Count(in allocator) - 1),
+                    components = new Dictionary<int, Info>(ref allocator, components.Count(in allocator) - 1),
                 };
-                arch.componentIds.AddRange(componentIds);
+                arch.componentIds.AddRange(ref allocator, componentIds);
                 storage.isArchetypesDirty = true;
-                var idx = storage.allArchetypes.Count;
+                var idx = storage.allArchetypes.Count(in allocator);
                 arch.index = idx;
-                storage.dirtyArchetypes.Add(idx);
-                storage.allArchetypes.Add(arch);
-                var info = components[componentId];
-                arch.componentIds.RemoveAt(info.index);
-                for (var i = 0; i < arch.componentIds.Count; ++i) {
-                    var cId = arch.componentIds[i];
-                    arch.components.Add(cId, new Info() {
+                
+                var info = components[in allocator, componentId];
+                arch.componentIds.RemoveAt(ref allocator, info.index);
+                for (var i = 0; i < arch.componentIds.Count(in allocator); ++i) {
+                    var cId = arch.componentIds[in allocator, i];
+                    arch.components.Add(ref allocator, cId, new Info() {
                         index = i,
                     });
+                    
                 }
 
                 if (node >= 0) {
-                    arch.edgesToAdd.Add(componentId, node);
+                    arch.edgesToAdd.Add(ref allocator, componentId, node);
                 }
 
+                storage.dirtyArchetypes.Add(ref allocator, idx);
+                storage.allArchetypes.Add(ref allocator, arch);
+                
                 return idx;
 
             }
@@ -349,119 +312,57 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public override int GetHashCode() {
+        public int GetHash(ref MemoryAllocator allocator) {
             
-            if (this.dead == null) return 0;
+            if (this.dead.isCreated == false) return 0;
             
-            return this.versions.GetHashCode() ^ this.flags.GetHashCode() ^ this.aliveCount ^ this.nextEntityId ^ this.dead.Count ^ this.allArchetypes.Count;
+            return this.versions.GetHash(in allocator) ^ this.flags.GetHash(in allocator) ^ this.aliveCount ^ this.nextEntityId ^ this.dead.Count(in allocator) ^ this.allArchetypes.Count(in allocator);
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private void RemoveEntityFromArch(ref Archetype arch, int entityId) {
+        private void RemoveEntityFromArch(ref MemoryAllocator allocator, ref Archetype arch, int entityId) {
 
-            var idx = this.GetEntityArrIndex(entityId);
-            var movedEntityId = arch.entitiesArr[arch.entitiesArr.Count - 1];
-            arch.entitiesArr.RemoveAtFast(idx);
-            arch.entitiesContains.Remove(entityId);
-            if (movedEntityId != entityId) this.SetEntityArrIndex(movedEntityId, idx);
-            this.SetEntityArrIndex(entityId, -1);
+            var idx = this.GetEntityArrIndex(ref allocator, entityId);
+            var movedEntityId = arch.entitiesArr[in allocator, arch.entitiesArr.Count(in allocator) - 1];
+            arch.entitiesArr.RemoveAtFast(ref allocator, idx);
+            arch.entitiesContains.Remove(ref allocator, entityId);
+            if (movedEntityId != entityId) this.SetEntityArrIndex(ref allocator, movedEntityId, idx);
+            this.SetEntityArrIndex(ref allocator, entityId, -1);
             
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private void AddEntityToArch(ref Archetype arch, int entityId) {
+        private void AddEntityToArch(ref MemoryAllocator allocator, ref Archetype arch, int entityId) {
 
-            var idx = arch.entitiesArr.Count;
-            arch.entitiesArr.Add(entityId);
-            arch.entitiesContains.Add(entityId);
-            this.SetEntityArrIndex(entityId, idx);
+            var idx = arch.entitiesArr.Count(in allocator);
+            arch.entitiesArr.Add(ref allocator, entityId);
+            arch.entitiesContains.Add(ref allocator, entityId);
+            this.SetEntityArrIndex(ref allocator, entityId, idx);
             
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private int GetEntityArrIndex(int entityId) {
+        private int GetEntityArrIndex(ref MemoryAllocator allocator, int entityId) {
 
-            ArrayUtils.Resize(entityId, ref this.entitiesArrIndex);
-            return this.entitiesArrIndex[entityId];
+            this.entitiesArrIndex.Resize(ref allocator, entityId + 1);
+            return this.entitiesArrIndex[in allocator, entityId];
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private void SetEntityArrIndex(int entityId, int index) {
+        private void SetEntityArrIndex(ref MemoryAllocator allocator, int entityId, int index) {
 
-            ArrayUtils.Resize(entityId, ref this.entitiesArrIndex);
-            this.entitiesArrIndex[entityId] = index;
-
-        }
-
-        public struct NullArchetypes {
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Set<T>(in Entity entity) { }
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Remove<T>(in Entity entity) { }
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Set(in Entity entity, int componentId) { }
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Remove(in Entity entity, int componentId) { }
-
-            #if !ENTITIES_GROUP_DISABLED
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Set(in EntitiesGroup group, int componentId) { }
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Remove(in EntitiesGroup group, int componentId) { }
-            #endif
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Set(int entityId, int componentId) { }
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Remove(int entityId, int componentId) { }
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Clear(in Entity entity) { }
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Validate(int capacity) { }
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void Validate(in Entity entity) { }
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public void CopyFrom(in Entity @from, in Entity to) { }
+            this.entitiesArrIndex.Resize(ref allocator, entityId + 1);
+            this.entitiesArrIndex[in allocator, entityId] = index;
 
         }
 
@@ -479,34 +380,32 @@ namespace ME.ECS.FiltersArchetype {
         [ME.ECS.Serializer.SerializeField]
         internal int root;
         [ME.ECS.Serializer.SerializeField]
-        internal DictionaryULong<int> index;
+        internal Dictionary<ulong, int> index;
         [ME.ECS.Serializer.SerializeField]
-        internal ListCopyable<Archetype> allArchetypes;
+        internal List<Archetype> allArchetypes;
         [ME.ECS.Serializer.SerializeField]
-        internal ListCopyable<FilterData> filters;
+        internal List<FilterData> filters;
         [ME.ECS.Serializer.SerializeField]
         internal ME.ECS.EntityVersions versions;
         [ME.ECS.Serializer.SerializeField]
         internal ME.ECS.EntityFlags flags;
         [ME.ECS.Serializer.SerializeField]
-        internal BufferArray<int> entitiesArrIndex;
+        internal List<int> entitiesArrIndex;
         [ME.ECS.Serializer.SerializeField]
-        internal HashSetCopyable<int> dirtyArchetypes;
-
-        internal NullArchetypes archetypes; // Used for backward compability
+        internal HashSet<int> dirtyArchetypes;
 
         #region Entities Storage
         public int AliveCount => this.aliveCount;
-        public int DeadCount => this.dead.Count;
+        public int DeadCount(in MemoryAllocator allocator) => this.dead.Count(in allocator);
 
         [ME.ECS.Serializer.SerializeField]
-        internal NativeBufferArray<Entity> cache;
+        internal MemArrayAllocator<Entity> cache;
         [ME.ECS.Serializer.SerializeField]
-        internal ListCopyable<int> dead;
+        internal List<int> dead;
         [ME.ECS.Serializer.SerializeField]
-        internal ListCopyable<int> deadPrepared;
+        internal List<int> deadPrepared;
         [ME.ECS.Serializer.SerializeField]
-        internal ListCopyable<int> alive;
+        internal List<int> alive;
         [ME.ECS.Serializer.SerializeField]
         private int aliveCount;
         [ME.ECS.Serializer.SerializeField]
@@ -522,152 +421,109 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void SetCapacity(int capacity) {
+        public void SetCapacity(ref MemoryAllocator allocator, int capacity) {
 
-            ArrayUtils.Resize(capacity - 1, ref this.entitiesArrIndex);
-            NativeArrayUtils.Resize(capacity - 1, ref this.cache);
-            this.dead.EnsureCapacity(capacity);
-            this.alive.EnsureCapacity(capacity);
-            this.deadPrepared.EnsureCapacity(capacity);
+            this.entitiesArrIndex.Resize(ref allocator, capacity);
+            this.cache.Resize(ref allocator, capacity);
+            this.dead.EnsureCapacity(ref allocator, capacity);
+            this.alive.EnsureCapacity(ref allocator, capacity);
+            this.deadPrepared.EnsureCapacity(ref allocator, capacity);
             
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Initialize(int capacity) {
+        public void Initialize(ref MemoryAllocator allocator, int capacity) {
 
-            this.entitiesArrIndex = PoolArray<int>.Spawn(capacity);
+            this.entitiesArrIndex = new List<int>(ref allocator, capacity);
 
-            this.cache = PoolArrayNative<Entity>.Spawn(capacity);
-            this.dead = PoolListCopyable<int>.Spawn(capacity);
-            this.alive = PoolListCopyable<int>.Spawn(capacity);
-            this.deadPrepared = PoolListCopyable<int>.Spawn(capacity);
-            this.versions = new ME.ECS.EntityVersions(capacity);
-            this.flags = new ME.ECS.EntityFlags(capacity);
+            this.cache = new MemArrayAllocator<Entity>(ref allocator, capacity);
+            this.dead = new List<int>(ref allocator, capacity);
+            this.alive = new List<int>(ref allocator, capacity);
+            this.deadPrepared = new List<int>(ref allocator, capacity);
+            this.versions = new ME.ECS.EntityVersions(ref allocator, capacity);
+            this.flags = new ME.ECS.EntityFlags(ref allocator, capacity);
             this.aliveCount = 0;
             this.nextEntityId = -1;
             this.isCreated = true;
             this.forEachMode = 0;
             this.isArchetypesDirty = false;
 
-            this.requests = PoolList<Request>.Spawn(10);
+            this.requests = new List<Request>(ref allocator, 10);
 
             var arch = new Archetype() {
-                edgesToAdd = PoolDictionaryInt<int>.Spawn(16),
-                edgesToRemove = PoolDictionaryInt<int>.Spawn(16),
-                entitiesArr = PoolListCopyable<int>.Spawn(16),
-                entitiesContains = PoolHashSetCopyable<int>.Spawn(16),
-                componentIds = PoolListCopyable<int>.Spawn(10),
-                components = PoolDictionaryInt<Archetype.Info>.Spawn(16),
+                edgesToAdd = new Dictionary<int, int>(ref allocator, 16),
+                edgesToRemove = new Dictionary<int, int>(ref allocator, 16),
+                entitiesArr = new List<int>(ref allocator, 16),
+                entitiesContains = new HashSet<int>(ref allocator, 16),
+                componentIds = new List<int>(ref allocator, 10),
+                components = new Dictionary<int, Archetype.Info>(ref allocator, 16),
                 index = 0,
             };
             this.root = arch.index;
-            this.index = PoolDictionaryULong<int>.Spawn(16);
-            this.allArchetypes = PoolListCopyable<Archetype>.Spawn(capacity);
-            this.filters = PoolListCopyable<FilterData>.Spawn(capacity);
-            this.dirtyArchetypes = PoolHashSetCopyable<int>.Spawn();
-            this.allArchetypes.Add(arch);
+            this.index = new Dictionary<ulong, int>(ref allocator, 16);
+            this.allArchetypes = new List<Archetype>(ref allocator, capacity);
+            this.filters = new List<FilterData>(ref allocator, capacity);
+            this.dirtyArchetypes = new HashSet<int>(ref allocator, 16);
+            this.allArchetypes.Add(ref allocator, arch);
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void CopyFrom(FiltersArchetypeStorage other) {
-
-            if (this.isCreated == false || this.requests == null) {
-                this.Initialize(0);
-            }
-
-            ArrayUtils.Copy(other.requests, ref this.requests);
-
-            ArrayUtils.Copy(other.entitiesArrIndex, ref this.entitiesArrIndex);
-
-            this.isCreated = other.isCreated;
-            this.forEachMode = other.forEachMode;
-            NativeArrayUtils.Copy(other.cache, ref this.cache);
-            ArrayUtils.Copy(other.dead, ref this.dead);
-            ArrayUtils.Copy(other.alive, ref this.alive);
-            ArrayUtils.Copy(other.deadPrepared, ref this.deadPrepared);
-            this.aliveCount = other.aliveCount;
-            this.nextEntityId = other.nextEntityId;
-            this.versions.CopyFrom(other.versions);
-            this.flags.CopyFrom(other.flags);
-            this.isArchetypesDirty = other.isArchetypesDirty;
-
-            ArrayUtils.Copy(other.dirtyArchetypes, ref this.dirtyArchetypes);
-            this.root = other.root;
-            ArrayUtils.Copy(other.filters, ref this.filters, new FilterData.CopyData());
-            ArrayUtils.Copy(other.index, ref this.index);
+        public void Dispose(ref MemoryAllocator allocator) {
             
-            ArrayUtils.Copy(other.allArchetypes, ref this.allArchetypes, new Archetype.CopyData());
-            
-        }
-
-        #if INLINE_METHODS
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        #endif
-        public void Recycle() {
-            
-            if (this.allArchetypes != null) {
-
-                for (int i = 0; i < this.allArchetypes.Count; ++i) {
-
-                    this.allArchetypes[i].Recycle();
-
-                }
-
-            }
-
-            this.versions.Recycle();
+            this.versions.Dispose(ref allocator);
             this.versions = default;
-            
-            this.flags.Recycle();
+            this.flags.Dispose(ref allocator);
             this.flags = default;
             
             this.root = default;
-            PoolDictionaryULong<int>.Recycle(ref this.index);
-            PoolListCopyable<Archetype>.Recycle(ref this.allArchetypes);
-            PoolListCopyable<FilterData>.Recycle(ref this.filters);
             this.isArchetypesDirty = default;
-            PoolHashSetCopyable<int>.Recycle(ref this.dirtyArchetypes);
-            PoolArray<int>.Recycle(ref this.entitiesArrIndex);
-            PoolList<Request>.Recycle(ref this.requests);
-
-            PoolArrayNative<Entity>.Recycle(ref this.cache);
-            PoolListCopyable<int>.Recycle(ref this.dead);
-            PoolListCopyable<int>.Recycle(ref this.alive);
-            PoolListCopyable<int>.Recycle(ref this.deadPrepared);
+            this.requests.Dispose(ref allocator);
             this.forEachMode = default;
             this.isCreated = false;
             this.aliveCount = 0;
             this.nextEntityId = -1;
+            
+            this.index.Dispose(ref allocator);
+            this.allArchetypes.Dispose(ref allocator);
+            this.filters.Dispose(ref allocator);
+            
+            this.dirtyArchetypes.Dispose(ref allocator);
+            this.entitiesArrIndex.Dispose(ref allocator);
+            
+            this.cache.Dispose(ref allocator);
+            this.dead.Dispose(ref allocator);
+            this.alive.Dispose(ref allocator);
+            this.deadPrepared.Dispose(ref allocator);
 
         }
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        public ref Entity GetEntityById(int id) {
+        public ref Entity GetEntityById(in MemoryAllocator allocator, int id) {
 
-            return ref this.cache[id];
+            return ref this.cache[in allocator, id];
 
         }
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        public bool IsAlive(int id, ushort generation) {
+        public bool IsAlive(in MemoryAllocator allocator, int id, ushort generation) {
 
-            return this.cache[id].generation == generation;
+            return this.cache[in allocator, id].generation == generation;
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public bool ForEach(ListCopyable<Entity> results) {
+        public bool ForEach(in MemoryAllocator allocator, ListCopyable<Entity> results) {
 
             results.Clear();
-            for (var i = 0; i < this.alive.Count; ++i) {
-                results.Add(this.GetEntityById(this.alive[i]));
+            for (var i = 0; i < this.alive.Count(in allocator); ++i) {
+                results.Add(this.GetEntityById(in allocator, this.alive[in allocator, i]));
             }
 
             return true;
@@ -676,119 +532,118 @@ namespace ME.ECS.FiltersArchetype {
 
         #if !ENTITIES_GROUP_DISABLED
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        public void Alloc(int count, ref EntitiesGroup group, Unity.Collections.Allocator allocator, bool copyMode) {
+        public unsafe void Alloc(ref MemoryAllocator allocator, int count, ref EntitiesGroup group, Unity.Collections.Allocator unityAllocator, bool copyMode) {
 
             var lastId = ++this.nextEntityId + count;
-            NativeArrayUtils.Resize(lastId, ref this.cache);
+            this.cache.Resize(ref allocator, lastId + 1);
 
             this.aliveCount += count;
 
             var from = this.nextEntityId;
             var id = this.nextEntityId;
             for (var i = 0; i < count; ++i) {
-                this.cache.arr[id] = new Entity(id, 1);
-                this.OnAlloc(id);
-                this.alive.Add(id++);
+                this.cache[in allocator, id] = new Entity(id, 1);
+                this.OnAlloc(ref allocator, id);
+                this.alive.Add(ref allocator, id++);
             }
 
-            this.versions.Reset(id);
-            this.flags.Reset(id);
+            this.versions.Reset(ref allocator, id);
+            this.flags.Reset(ref allocator, id);
 
             this.nextEntityId += count;
 
-            var slice = new Unity.Collections.NativeSlice<Entity>(this.cache.arr, from, count);
-            var array = new Unity.Collections.NativeArray<Entity>(count, allocator, Unity.Collections.NativeArrayOptions.UninitializedMemory);
-            slice.CopyTo(array);
+            var array = new Unity.Collections.NativeArray<Entity>(count, unityAllocator, Unity.Collections.NativeArrayOptions.UninitializedMemory);
+            var size = sizeof(Entity);
+            Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemCpy(array.GetUnsafePtr(), this.cache.GetUnsafePtr(in allocator), size * count);
             group = new EntitiesGroup(from, from + count - 1, array, copyMode);
 
         }
         #endif
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        public ref Entity Alloc() {
+        public ref Entity Alloc(ref MemoryAllocator allocator) {
 
             var id = -1;
-            if (this.dead.Count > 0) {
+            if (this.dead.Count(in allocator) > 0) {
 
-                id = this.dead[0];
-                this.dead.RemoveAtFast(0);
+                id = this.dead[in allocator, 0];
+                this.dead.RemoveAtFast(ref allocator, 0);
 
             } else {
 
                 id = ++this.nextEntityId;
-                NativeArrayUtils.Resize(id, ref this.cache);
-
+                this.cache.Resize(ref allocator, id + 1);
+                
             }
 
             ++this.aliveCount;
-            ref var e = ref this.cache[id];
-            this.alive.Add(id);
+            ref var e = ref this.cache[in allocator, id];
             if (e.generation == 0) {
                 e = new Entity(id, 1);
             }
-
-            this.versions.Reset(id);
-            this.flags.Reset(id);
-
-            this.OnAlloc(e.id);
             
-            return ref e;
+            this.alive.Add(ref allocator, id);
+            this.versions.Reset(ref allocator, id);
+            this.flags.Reset(ref allocator, id);
+            this.OnAlloc(ref allocator, id);
+            
+            return ref this.cache[in allocator, id];
 
         }
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        public bool Dealloc(in Entity entity) {
+        public bool Dealloc(ref MemoryAllocator allocator, in Entity entity) {
 
-            if (this.IsAlive(entity.id, entity.generation) == false) {
+            if (this.IsAlive(in allocator, entity.id, entity.generation) == false) {
                 return false;
             }
 
             //UnityEngine.Debug.Log("Dealloc: " + entity + ", tick: " + Worlds.current.GetCurrentTick());
-            this.deadPrepared.Add(entity.id);
+            this.deadPrepared.Add(ref allocator, entity.id);
 
             return true;
 
         }
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        public void ApplyDead() {
+        public void ApplyDead(ref MemoryAllocator allocator) {
 
-            var cnt = this.deadPrepared.Count;
+            var cnt = this.deadPrepared.Count(in allocator);
             if (cnt > 0) {
 
                 for (var i = 0; i < cnt; ++i) {
 
-                    var id = this.deadPrepared[i];
+                    var id = this.deadPrepared[in allocator, i];
                     --this.aliveCount;
-                    this.dead.Add(id);
-                    this.alive.Remove(id);
-                    this.OnDealloc(id);
+                    this.dead.Add(ref allocator, id);
+                    this.alive.Remove(ref allocator, id);
+                    this.OnDealloc(ref allocator, id);
 
                 }
 
-                this.deadPrepared.Clear();
+                this.deadPrepared.Clear(in allocator);
 
             }
 
         }
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private void OnAlloc(int entityId) {
+        private void OnAlloc(ref MemoryAllocator allocator, int entityId) {
 
-            ref var arch = ref this.allArchetypes[this.root];
-            this.AddEntityToArch(ref arch, entityId);
-            this.index.Add((ulong)entityId << 32, this.root);
+            ref var arch = ref this.allArchetypes[in allocator, this.root];
+            this.AddEntityToArch(ref allocator, ref arch, entityId);
+            this.index.Add(ref allocator, (ulong)entityId << 32, this.root);
 
         }
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private void OnDealloc(int entityId) {
+        private void OnDealloc(ref MemoryAllocator allocator, int entityId) {
 
             // Remove from archetype
             var key = (ulong)entityId << 32;
-            var archIdx = this.index.GetValueAndRemove(key);
-            ref var arch = ref this.allArchetypes[archIdx];
-            this.RemoveEntityFromArch(ref arch, entityId);
+            var archIdx = this.index.GetValueAndRemove(ref allocator, key);
+            ref var arch = ref this.allArchetypes[in allocator, archIdx];
+            this.RemoveEntityFromArch(ref allocator, ref arch, entityId);
 
         }
         #endregion
@@ -796,32 +651,25 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public ref FilterData GetFilter(int id) {
+        public ref FilterData GetFilter(in MemoryAllocator allocator, int id) {
 
-            return ref this.filters[id - 1];
-
-        }
-
-        public ref Archetype GetArchetypeByEntity(in Entity entity) {
-            
-            var key = (ulong)entity.id << 32;
-            return ref this.allArchetypes[this.index.GetValue(key)];
+            return ref this.filters[in allocator, id - 1];
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private bool TryGetArchetypeAdd(ListCopyable<int> componentIds, int componentId, out int arch) {
+        private bool TryGetArchetypeAdd(ref MemoryAllocator allocator, List<int> componentIds, int componentId, out int arch) {
 
             // Try to search archetype with componentIds + componentId contained in
             arch = default;
-            for (var i = 0; i < this.allArchetypes.Count; ++i) {
+            for (var i = 0; i < this.allArchetypes.Count(in allocator); ++i) {
 
-                var ar = this.allArchetypes[i];
-                if (ar.componentIds.Count == componentIds.Count &&
-                    ar.Has(componentId) == true &&
-                    ar.HasAll(componentIds) == true) {
+                ref var ar = ref this.allArchetypes[in allocator, i];
+                if (ar.componentIds.Count(in allocator) == componentIds.Count(in allocator) &&
+                    ar.Has(in allocator, componentId) == true &&
+                    ar.HasAll(in allocator, componentIds) == true) {
 
                     arch = i;
                     return true;
@@ -837,16 +685,16 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private bool TryGetArchetypeRemove(ListCopyable<int> componentIds, int componentId, out int arch) {
+        private bool TryGetArchetypeRemove(ref MemoryAllocator allocator, List<int> componentIds, int componentId, out int arch) {
 
             // Try to search archetype with componentIds except componentId contained in
             arch = default;
-            for (var i = 0; i < this.allArchetypes.Count; ++i) {
+            for (var i = 0; i < this.allArchetypes.Count(in allocator); ++i) {
 
-                var ar = this.allArchetypes[i];
-                if (ar.componentIds.Count == componentIds.Count - 1 &&
-                    ar.Has(componentId) == false &&
-                    ar.HasAllExcept(componentIds, componentId) == true) {
+                ref var ar = ref this.allArchetypes[in allocator, i];
+                if (ar.componentIds.Count(in allocator) == componentIds.Count(in allocator) - 1 &&
+                    ar.Has(in allocator, componentId) == false &&
+                    ar.HasAllExcept(in allocator, componentIds, componentId) == true) {
 
                     arch = i;
                     return true;
@@ -862,12 +710,12 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public bool Has<T>(in Entity entity) where T : struct {
+        public bool Has<T>(in MemoryAllocator allocator, in Entity entity) where T : struct {
 
             var key = (ulong)entity.id << 32;
-            var archIdx = this.index[key];
-            var arch = this.allArchetypes[archIdx];
-            return arch.Has(ComponentTypes<T>.typeId);
+            var archIdx = this.index[in allocator, key];
+            var arch = this.allArchetypes[in allocator, archIdx];
+            return arch.Has(in allocator, ComponentTypes<T>.typeId);
 
         }
 
@@ -875,11 +723,11 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Set(in EntitiesGroup group, int componentId, bool checkLambda) {
+        public void Set(ref MemoryAllocator allocator, in EntitiesGroup group, int componentId, bool checkLambda) {
 
             for (var i = group.fromId; i <= group.toId; ++i) {
 
-                this.Set(this.GetEntityById(i), componentId, checkLambda);
+                this.Set(ref allocator, this.GetEntityById(in allocator, i), componentId, checkLambda);
 
             }
 
@@ -888,11 +736,11 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Remove(in EntitiesGroup group, int componentId, bool checkLambda) {
+        public void Remove(ref MemoryAllocator allocator, in EntitiesGroup group, int componentId, bool checkLambda) {
 
             for (var i = group.fromId; i <= group.toId; ++i) {
 
-                this.Remove(this.GetEntityById(i), componentId, checkLambda);
+                this.Remove(ref allocator, this.GetEntityById(in allocator, i), componentId, checkLambda);
 
             }
 
@@ -902,27 +750,29 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Validate<T>(in Entity entity, bool makeRequest) where T : struct {
+        public void Validate<T>(ref MemoryAllocator allocator, in Entity entity, bool makeRequest) where T : struct {
 
-            this.Validate(in entity, ComponentTypes<T>.typeId, makeRequest);
+            this.Validate(ref allocator, in entity, ComponentTypes<T>.typeId, makeRequest);
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Validate(in Entity entity, int componentId, bool makeRequest) {
+        public void Validate(ref MemoryAllocator allocator, in Entity entity, int componentId, bool makeRequest) {
 
             if (makeRequest == true) {
 
                 // Add request and apply set on next UpdateFilters call
-                this.AddValidateRequest(in entity, componentId);
+                this.AddValidateRequest(ref allocator, in entity, componentId);
 
             } else {
 
+                #if !FILTERS_LAMBDA_DISABLED
                 if (ComponentTypesLambda.itemsSet.TryGetValue(componentId, out var lambda) == true) {
                     lambda.Invoke(entity);
                 }
+                #endif
 
             }
 
@@ -931,113 +781,130 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Set(in Entity entity, int componentId, bool checkLambda) {
+        public void Set(ref MemoryAllocator allocator, in Entity entity, int componentId, bool checkLambda) {
 
+            #if !FILTERS_LAMBDA_DISABLED
             if (checkLambda == true && ComponentTypesLambda.itemsSet.TryGetValue(componentId, out var lambda) == true) {
                 lambda.Invoke(entity);
             }
+            #endif
 
             if (this.forEachMode > 0) {
 
                 // Add request
-                this.AddSetRequest(in entity, componentId, checkLambda);
+                this.AddSetRequest(ref allocator, in entity, componentId, checkLambda);
                 return;
 
             }
 
             var key = (ulong)entity.id << 32;
-            ref var archIdx = ref this.index.GetValue(key);
-            ref var arch = ref this.allArchetypes[archIdx];
-            archIdx = arch.Set(ref this, entity, componentId).index;
-            this.index[key] = archIdx;
+            ref var archIdx = ref this.index.GetValue(ref allocator, key);
+            ref var arch = ref this.allArchetypes[in allocator, archIdx];
+            archIdx = arch.Set(ref allocator, ref this, entity, componentId).index;
+            this.index[in allocator, key] = archIdx;
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Set<T>(in Entity entity) where T : struct {
+        public void Set<T>(ref MemoryAllocator allocator, in Entity entity) where T : struct {
 
-            this.Set(in entity, ComponentTypes<T>.typeId, ComponentTypes<T>.isFilterLambda);
+            #if !FILTERS_LAMBDA_DISABLED
+            var checkLambda = ComponentTypes<T>.isFilterLambda;
+            #else
+            var checkLambda = false;
+            #endif
+            this.Set(ref allocator, in entity, ComponentTypes<T>.typeId, checkLambda);
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Remove(in Entity entity) { }
+        public void Remove(ref MemoryAllocator allocator, in Entity entity) { }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Remove(in Entity entity, int componentId, bool checkLambda) {
+        public void Remove(ref MemoryAllocator allocator, in Entity entity, int componentId, bool checkLambda) {
 
+            #if !FILTERS_LAMBDA_DISABLED
             if (checkLambda == true && ComponentTypesLambda.itemsRemove.TryGetValue(componentId, out var lambda) == true) {
                 lambda.Invoke(entity);
             }
+            #endif
 
             if (this.forEachMode > 0) {
 
                 // Add request
-                this.AddRemoveRequest(in entity, componentId, checkLambda);
+                this.AddRemoveRequest(ref allocator, in entity, componentId, checkLambda);
                 return;
 
             }
 
             var key = (ulong)entity.id << 32;
-            ref var archIdx = ref this.index.GetValue(key);
-            ref var arch = ref this.allArchetypes[archIdx];
-            archIdx = arch.Remove(ref this, entity, componentId).index;
-            this.index[key] = archIdx;
+            ref var archIdx = ref this.index.GetValue(ref allocator, key);
+            ref var arch = ref this.allArchetypes[in allocator, archIdx];
+            archIdx = arch.Remove(ref allocator, ref this, entity, componentId).index;
+            this.index[in allocator, key] = archIdx;
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void Remove<T>(in Entity entity) where T : struct {
+        public void Remove<T>(ref MemoryAllocator allocator, in Entity entity) where T : struct {
 
-            this.Remove(in entity, ComponentTypes<T>.typeId, ComponentTypes<T>.isFilterLambda);
+            #if !FILTERS_LAMBDA_DISABLED
+            var checkLambda = ComponentTypes<T>.isFilterLambda;
+            #else
+            var checkLambda = false;
+            #endif
+            this.Remove(ref allocator, in entity, ComponentTypes<T>.typeId, checkLambda);
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private void ApplyAllRequests() {
+        private void ApplyAllRequests(ref MemoryAllocator allocator) {
 
-            foreach (var req in this.requests) {
+            var e = this.requests.GetEnumerator(in allocator);
+            while (e.MoveNext() == true) {
 
+                var req = e.Current;
                 if (req.entity.IsAlive() == false) {
                     continue;
                 }
 
                 if (req.op == 1) {
 
-                    this.Set(in req.entity, req.componentId, req.checkLambda);
+                    this.Set(ref allocator, in req.entity, req.componentId, req.checkLambda);
 
                 } else if (req.op == 2) {
 
-                    this.Remove(in req.entity, req.componentId, req.checkLambda);
+                    this.Remove(ref allocator, in req.entity, req.componentId, req.checkLambda);
 
                 } else if (req.op == 3) {
 
-                    this.Validate(in req.entity, req.componentId, false);
+                    this.Validate(ref allocator, in req.entity, req.componentId, false);
 
                 }
 
             }
+            e.Dispose();
 
-            this.requests.Clear();
+            this.requests.Clear(in allocator);
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private void AddValidateRequest(in Entity entity, int componentId) {
+        private void AddValidateRequest(ref MemoryAllocator allocator, in Entity entity, int componentId) {
 
-            this.requests.Add(new Request() {
+            this.requests.Add(ref allocator, new Request() {
                 entity = entity,
                 componentId = componentId,
                 op = 3,
@@ -1048,9 +915,9 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private void AddSetRequest(in Entity entity, int componentId, bool checkLambda) {
+        private void AddSetRequest(ref MemoryAllocator allocator, in Entity entity, int componentId, bool checkLambda) {
 
-            this.requests.Add(new Request() {
+            this.requests.Add(ref allocator, new Request() {
                 entity = entity,
                 componentId = componentId,
                 op = 1,
@@ -1062,9 +929,9 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private void AddRemoveRequest(in Entity entity, int componentId, bool checkLambda) {
+        private void AddRemoveRequest(ref MemoryAllocator allocator, in Entity entity, int componentId, bool checkLambda) {
 
-            this.requests.Add(new Request() {
+            this.requests.Add(ref allocator, new Request() {
                 entity = entity,
                 componentId = componentId,
                 op = 2,
@@ -1076,50 +943,51 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public int Count(Filter filter) {
+        public int Count(State state, ref MemoryAllocator allocator, Filter filter) {
 
-            return this.Count(this.GetFilter(filter.id));
+            return this.Count(state, ref allocator, filter.id);
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public int Count(FilterData filter) {
+        public int Count(State state, ref MemoryAllocator allocator, int filterId) {
 
-            var filterStaticData = Worlds.current.GetFilterStaticData(filter.id);
+            var filterStaticData = Worlds.current.GetFilterStaticData(filterId);
             if (FiltersArchetype.FiltersArchetypeStorage.CheckStaticShared(filterStaticData.data.containsShared, filterStaticData.data.notContainsShared) == false) {
                 return 0;
             }
 
             if (this.forEachMode == 0) {
-                this.UpdateFilters();
+                this.UpdateFilters(state, ref allocator);
             }
-
+            
             var onChanged = filterStaticData.data.onChanged;
             var changedTracked = onChanged.Count;
             
             var connectedFilters = filterStaticData.data.connectedFilters;
             var connectedTracked = connectedFilters.Count;
 
+            ref var filter = ref this.GetFilter(in allocator, filterId);
             var count = 0;
-            for (int i = 0, cnt = filter.archetypes.Count; i < cnt; ++i) {
+            for (int i = 0, cnt = filter.archetypes.Count(in allocator); i < cnt; ++i) {
 
-                var archId = filter.archetypesList[i];
-                var arch = this.allArchetypes[archId];
+                var archId = filter.archetypesList[in allocator, i];
+                var arch = this.allArchetypes[in allocator, archId];
                 if (changedTracked > 0 || connectedTracked > 0) {
 
-                    for (int index = 0; index < arch.entitiesArr.Count; ++index) {
+                    for (int index = 0; index < arch.entitiesArr.Count(in allocator); ++index) {
 
-                        var entityId = arch.entitiesArr[index];
+                        var entityId = arch.entitiesArr[in allocator, index];
                         
                         if (connectedTracked > 0) {
-                            var entity = this.GetEntityById(entityId);
+                            var entity = this.GetEntityById(in allocator, entityId);
                             // Check if all custom filters contains connected entity
                             var found = true;
                             for (int j = 0, cntj = connectedTracked; j < cntj; ++j) {
                                 var connectedFilter = connectedFilters[j];
-                                if (connectedFilter.filter.Contains(connectedFilter.get.Invoke(entity)) == false) {
+                                if (connectedFilter.filter.Contains(in allocator, connectedFilter.get.Invoke(entity)) == false) {
                                     found = false;
                                     break;
                                 }
@@ -1155,7 +1023,7 @@ namespace ME.ECS.FiltersArchetype {
                 
                 if (changedTracked == 0 && connectedTracked == 0) {
 
-                    count += arch.entitiesArr.Count;
+                    count += arch.entitiesArr.Count(in allocator);
 
                 }
 
@@ -1165,11 +1033,11 @@ namespace ME.ECS.FiltersArchetype {
 
         }
 
-        public void MarkAllArchetypesAsDirty() {
+        public void MarkAllArchetypesAsDirty(ref MemoryAllocator allocator) {
 
-            for (int archId = 0, cnt2 = this.allArchetypes.Count; archId < cnt2; ++archId) {
+            for (int archId = 0, cnt2 = this.allArchetypes.Count(in allocator); archId < cnt2; ++archId) {
                 
-                this.dirtyArchetypes.Add(archId);
+                this.dirtyArchetypes.Add(ref allocator, archId);
                 
             }
 
@@ -1178,56 +1046,65 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public void UpdateFilters() {
+        public void UpdateFilters(State state, ref MemoryAllocator allocator) {
 
             if (this.forEachMode > 0) {
                 return;
             }
 
-            this.ApplyDead();
-            this.ApplyAllRequests();
+            this.ApplyDead(ref allocator);
+            this.ApplyAllRequests(ref allocator);
 
             if (this.isArchetypesDirty == true) {
 
                 this.isArchetypesDirty = false;
                 var world = Worlds.current;
-                for (int idx = 0, cnt = this.filters.Count; idx < cnt; ++idx) {
+                for (int idx = 0, cnt = this.filters.Count(in allocator); idx < cnt; ++idx) {
                     
-                    ref var item = ref this.filters[idx];
-                    foreach (var archId in this.dirtyArchetypes) {
-                        
-                        if (item.archetypes.Contains(archId) == true) continue;
-                        
-                        var filterStaticData = world.GetFilterStaticData(item.id);
-                        ref var arch = ref this.allArchetypes[archId];
-                        if (arch.HasAll(filterStaticData.data.contains) == true &&
-                            arch.HasNotAll(filterStaticData.data.notContains) == true &&
-                            arch.HasAnyPair(filterStaticData.data.anyPair2) == true &&
-                            arch.HasAnyPair(filterStaticData.data.anyPair3) == true &&
-                            arch.HasAnyPair(filterStaticData.data.anyPair4) == true &&
-                            FiltersArchetypeStorage.CheckLambdas(in arch, filterStaticData.data.lambdas) == true) {
+                    ref var item = ref this.filters[in allocator, idx];
+                    var e = this.dirtyArchetypes.GetEnumerator(state);
+                    while (e.MoveNext() == true) {
 
-                            item.archetypes.Add(archId);
-                            item.archetypesList.Add(archId);
+                        var archId = e.Current;
+                        if (item.archetypes.Contains(in allocator, archId) == true) continue;
+
+                        var filterStaticData = world.GetFilterStaticData(item.id);
+                        ref var arch = ref this.allArchetypes[in allocator, archId];
+                        
+                        if (arch.HasAll(in allocator, filterStaticData.data.contains) == true &&
+                            arch.HasNotAll(in allocator, filterStaticData.data.notContains) == true &&
+                            arch.HasAnyPair(in allocator, filterStaticData.data.anyPair2) == true &&
+                            arch.HasAnyPair(in allocator, filterStaticData.data.anyPair3) == true &&
+                            arch.HasAnyPair(in allocator, filterStaticData.data.anyPair4) == true
+                            #if !FILTERS_LAMBDA_DISABLED
+                            && FiltersArchetypeStorage.CheckLambdas(in allocator, in arch, filterStaticData.data.lambdas) == true
+                            #endif
+                            ) {
+
+                            item.archetypes.Add(ref allocator, archId);
+                            item.archetypesList.Add(ref allocator, archId);
 
                         }
 
                     }
+                    e.Dispose();
                     
                 }
 
-                this.dirtyArchetypes.Clear();
+                this.dirtyArchetypes.Clear(in allocator);
 
             }
 
         }
-
+        
+        #if !FILTERS_LAMBDA_DISABLED
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static bool CheckLambdas(in Archetype arch, ListCopyable<int> lambdas) {
+        private static bool CheckLambdas(in MemoryAllocator allocator, in Archetype arch, ListCopyable<int> lambdas) {
 
-            return arch.HasAll(lambdas);
+            return arch.HasAll(in allocator, lambdas);
 
         }
+        #endif
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         internal static bool CheckStaticShared(ListCopyable<int> containsShared, ListCopyable<int> notContainsShared) {
@@ -1260,14 +1137,14 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public bool TryGetFilter(FilterBuilder filterBuilder, out FilterData filterData) {
+        public bool TryGetFilter(in MemoryAllocator allocator, FilterBuilder filterBuilder, out FilterData filterData) {
 
             filterData = default;
 
             var world = Worlds.current;
-            for (int i = 0, cnt = this.filters.Count; i < cnt; ++i) {
+            for (int i = 0, cnt = this.filters.Count(in allocator); i < cnt; ++i) {
 
-                var filter = this.filters[i];
+                var filter = this.filters[in allocator, i];
                 var filterStaticData = world.GetFilterStaticData(filter.id);
                 if (filterStaticData.isCreated == false) continue;
                 
@@ -1282,8 +1159,11 @@ namespace ME.ECS.FiltersArchetype {
                     FiltersArchetypeStorage.IsEquals(filterStaticData.data.anyPair2, filterBuilder.data.anyPair2) == true &&
                     FiltersArchetypeStorage.IsEquals(filterStaticData.data.anyPair3, filterBuilder.data.anyPair3) == true &&
                     FiltersArchetypeStorage.IsEquals(filterStaticData.data.anyPair4, filterBuilder.data.anyPair4) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.connectedFilters, filterBuilder.data.connectedFilters) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.lambdas, filterBuilder.data.lambdas) == true) {
+                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.connectedFilters, filterBuilder.data.connectedFilters) == true
+                    #if !FILTERS_LAMBDA_DISABLED
+                    && FiltersArchetypeStorage.IsEquals(filterStaticData.data.lambdas, filterBuilder.data.lambdas) == true
+                    #endif
+                    ) {
 
                     filterData = filter;
                     return true;
@@ -1350,16 +1230,16 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public bool WillNew() {
+        public bool WillNew(in MemoryAllocator allocator) {
 
-            return this.dead.Count == 0;
+            return this.dead.Count(in allocator) == 0;
 
         }
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public ListCopyable<int> GetAlive() {
+        public List<int> GetAlive() {
 
             return this.alive;
 
@@ -1368,11 +1248,11 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public ref Entity IncrementGeneration(in Entity entity) {
+        public ref Entity IncrementGeneration(in MemoryAllocator allocator, in Entity entity) {
 
             // Make this entity not alive, but not completely destroyed at this time
-            this.cache[entity.id] = new Entity(entity.id, unchecked((ushort)(entity.generation + 1)));
-            return ref this.cache[entity.id];
+            this.cache[in allocator, entity.id] = new Entity(entity.id, unchecked((ushort)(entity.generation + 1)));
+            return ref this.cache[in allocator, entity.id];
 
         }
 
@@ -1384,15 +1264,14 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        public bool IsDeadPrepared(int entityId) {
+        public bool IsDeadPrepared(in MemoryAllocator allocator, int entityId) {
 
-            if (this.deadPrepared.Count == 0) return false;
+            if (this.deadPrepared.Count(in allocator) == 0) return false;
 
-            return this.deadPrepared.Contains(entityId);
+            return this.deadPrepared.Contains(in allocator, entityId);
 
         }
 
     }
 
 }
-#endif

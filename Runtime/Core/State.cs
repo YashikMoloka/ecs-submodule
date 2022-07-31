@@ -2,6 +2,8 @@ using RandomState = System.UInt32;
 
 namespace ME.ECS {
 
+    using Collections.V3;
+    
     public abstract class State : IPoolableRecycle {
 
         [ME.ECS.Serializer.SerializeField]
@@ -11,18 +13,10 @@ namespace ME.ECS {
         [ME.ECS.Serializer.SerializeField]
         public Entity sharedEntity;
 
-        #if FILTERS_STORAGE_LEGACY
-        public FiltersStorage filters;
         [ME.ECS.Serializer.SerializeField]
-        public Storage storage;
-        #endif
+        public ME.ECS.FiltersArchetype.FiltersArchetypeStorage storage;
         
-        #if !FILTERS_STORAGE_LEGACY
-        [ME.ECS.Serializer.SerializeField]
-        public ME.ECS.FiltersArchetype.FiltersArchetypeStorage filters;
-        public ref ME.ECS.FiltersArchetype.FiltersArchetypeStorage storage => ref this.filters;
-        #endif
-        
+        public MemoryAllocator allocator;
         #if !ENTITY_TIMERS_DISABLED
         [ME.ECS.Serializer.SerializeField]
         public Timers timers;
@@ -38,38 +32,37 @@ namespace ME.ECS {
         /// <returns></returns>
         public virtual int GetHash() {
 
-            return this.tick ^ this.structComponents.GetHash() ^ this.randomState.GetHashCode() ^ this.storage.GetHashCode();
+            return this.tick ^ this.structComponents.GetHash() ^ this.randomState.GetHashCode() ^ this.storage.GetHash(ref this.allocator);
 
         }
 
         public virtual void Initialize(World world, bool freeze, bool restore) {
             
-            world.Register(ref this.filters, freeze, restore);
-            world.Register(ref this.structComponents, freeze, restore);
-            #if FILTERS_STORAGE_LEGACY
-            world.Register(ref this.storage, freeze, restore);
-            #endif
-            this.globalEvents.Initialize();
+            // Use 512 KB by default
+            this.allocator.Initialize(512 * 1024, -1);
+
+            world.Register(ref this.allocator, ref this.storage, freeze, restore);
+            world.Register(ref this.allocator, ref this.structComponents, freeze, restore);
+            this.globalEvents.Initialize(ref this.allocator);
             #if !ENTITY_TIMERS_DISABLED
-            this.timers.Initialize();
+            this.timers.Initialize(ref this.allocator);
             #endif
             
         }
 
         public virtual void CopyFrom(State other) {
             
+            this.allocator.CopyFrom(in other.allocator);
+            
             this.tick = other.tick;
             this.randomState = other.randomState;
             this.sharedEntity = other.sharedEntity;
 
-            this.filters.CopyFrom(other.filters);
+            this.storage = other.storage;
             this.structComponents.CopyFrom(other.structComponents);
-            #if FILTERS_STORAGE_LEGACY
-            this.storage.CopyFrom(other.storage);
-            #endif
-            this.globalEvents.CopyFrom(in other.globalEvents);
+            this.globalEvents = other.globalEvents;
             #if !ENTITY_TIMERS_DISABLED
-            this.timers.CopyFrom(in other.timers);
+            this.timers = other.timers;
             #endif
 
         }
@@ -81,15 +74,13 @@ namespace ME.ECS {
             this.sharedEntity = default;
             
             #if !ENTITY_TIMERS_DISABLED
-            this.timers.Dispose();
+            this.timers.Dispose(ref this.allocator);
             #endif
-            this.globalEvents.DeInitialize();
-            this.globalEvents = default;
-            WorldUtilities.Release(ref this.filters);
-            WorldUtilities.Release(ref this.structComponents);
-            #if FILTERS_STORAGE_LEGACY
-            WorldUtilities.Release(ref this.storage);
-            #endif
+            this.globalEvents.Dispose(ref this.allocator);
+            this.storage.Dispose(ref this.allocator);
+            this.structComponents.OnRecycle(ref this.allocator);
+            
+            this.allocator.Dispose();
 
         }
 

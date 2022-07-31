@@ -12,6 +12,23 @@ namespace ME.ECS {
         [ME.ECS.Serializer.SerializeField]
         internal BufferArraySliced<Component<TComponent>> components;
 
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override ref byte GetState(in Entity entity) {
+            throw new System.NotImplementedException();
+        }
+
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override bool TryRead(in Entity entity, out TComponent component) {
+            ref var bucket = ref this.components[entity.id];
+            component = bucket.data;
+            return bucket.state > 0;
+        }
+
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override ref Component<TComponent> Get(in Entity entity) {
+            return ref this.components[entity.id];
+        }
+
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
@@ -133,7 +150,7 @@ namespace ME.ECS {
             
             E.IS_ALIVE(in entity);
 
-            return DataBufferUtils.PushSet_INTERNAL(this.world, in entity, this, buffer.Read<TComponent>(), storageType);
+            return DataBufferUtils.PushSet_INTERNAL(this.world, in entity, this, buffer.Read<TComponent>(in this.allocator), storageType);
 
         }
 
@@ -191,11 +208,7 @@ namespace ME.ECS {
                 this.RemoveData(in entity, ref bucket);
                 bucket.state = 0;
 
-                if (clearAll == false) {
-
-                    this.world.currentState.storage.archetypes.Remove<TComponent>(in entity);
-
-                }
+                if (clearAll == false) { }
 
                 return true;
 

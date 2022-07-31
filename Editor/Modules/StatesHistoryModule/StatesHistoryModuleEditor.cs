@@ -337,10 +337,10 @@ namespace ME.ECSEditor {
         private void PrintEntities(State state) {
             
             var str = "Tick: " + state.tick + ", hash: " + state.GetHash() + "\n";
-            for (int i = 0; i < state.storage.cache.Length; ++i) {
+            for (int i = 0; i < state.storage.cache.Length(in state.allocator); ++i) {
 
-                var entity = state.storage.cache.arr[i];
-                str += entity.ToStringNoVersion() + " (Ver: " + state.storage.versions.Get(entity).ToString() + ")\n";
+                var entity = state.storage.cache[state.allocator, i];
+                str += entity.ToStringNoVersion() + " (Ver: " + state.storage.versions.Get(state.allocator, entity).ToString() + ")\n";
                 
             }
             UnityEngine.Debug.Log(str);

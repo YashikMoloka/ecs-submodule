@@ -8,9 +8,6 @@
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 #define CHECKPOINT_COLLECTOR
 #endif
-using System.Collections.Generic;
-using Unity.Jobs;
-
 #if FIXED_POINT_MATH
 using ME.ECS.Mathematics;
 using tfloat = sfloat;
@@ -18,10 +15,13 @@ using tfloat = sfloat;
 using Unity.Mathematics;
 using tfloat = System.Single;
 #endif
+using Unity.Jobs;
 
 namespace ME.ECS {
 
     using ME.ECS.Collections;
+    using Collections.V3;
+    using Collections.MemoryAllocator;
 
     [System.Flags]
     public enum WorldStep : byte {
@@ -119,7 +119,7 @@ namespace ME.ECS {
     public abstract class WorldBase {
 
         internal WorldStep currentStep;
-        internal Dictionary<System.Type, IFeatureBase> features;
+        internal System.Collections.Generic.Dictionary<System.Type, IFeatureBase> features;
         internal ListCopyable<IModuleBase> modules;
         internal BufferArray<SystemGroup> systemGroups;
         internal int systemGroupsLength;
@@ -163,14 +163,6 @@ namespace ME.ECS {
         private const int WORLDS_CAPACITY = 4;
         private const int FILTERS_CACHE_CAPACITY = 10;
         
-        #if FILTERS_STORAGE_LEGACY
-        private static class FiltersDirectCache {
-
-            internal static BufferArray<BufferArray<bool>> dic = new BufferArray<BufferArray<bool>>(null, 0); //new bool[World.WORLDS_CAPACITY][];
-
-        }
-        #endif
-
         private static int registryWorldId = 0;
 
         public int id { get; private set; }
@@ -178,7 +170,6 @@ namespace ME.ECS {
         private State resetState;
         private bool hasResetState;
         internal State currentState;
-        internal StructComponentsContainer structComponentsNoState;
         private uint seed;
         private int cpf; // CPF = Calculations per frame
         internal int entitiesCapacity;
@@ -204,8 +195,7 @@ namespace ME.ECS {
             } catch (System.Exception) { }
             #endif
             
-            this.structComponentsNoState = new StructComponentsContainer();
-            this.structComponentsNoState.Initialize(true);
+            this.noStateData.Initialize();
 
             this.currentSystemContextFiltersUsed = PoolArray<bool>.Spawn(World.FILTERS_CACHE_CAPACITY);
             this.currentSystemContextFiltersUsedAnyChanged = false;
@@ -251,7 +241,7 @@ namespace ME.ECS {
             this.speed = 0f;
             this.seed = default;
 
-            this.structComponentsNoState.OnRecycle();
+            this.noStateData.Dispose();
 
             this.DisposeGlobalEvents();
 
@@ -267,7 +257,8 @@ namespace ME.ECS {
 
             }
             PoolListCopyable<Entity>.Recycle(ref list);
-            this.GetState()?.storage.ApplyDead();
+            var state = this.GetState();
+            if (state != null) state.storage.ApplyDead(ref state.allocator);
 
             PoolArray<bool>.Recycle(ref this.currentSystemContextFiltersUsed);
             this.currentSystemContextFiltersUsedAnyChanged = default;
@@ -277,10 +268,6 @@ namespace ME.ECS {
             this.OnRecycleComponents();
             this.OnRecycleStructComponents();
         
-            #if FILTERS_STORAGE_LEGACY
-            if (FiltersDirectCache.dic.arr != null) PoolArray<bool>.Recycle(ref FiltersDirectCache.dic.arr[this.id]);
-            #endif
-
             PoolDictionary<System.Type, IFeatureBase>.Recycle(ref this.features);
 
             for (int i = this.systemGroupsLength - 1; i >= 0; --i) {
@@ -419,17 +406,7 @@ namespace ME.ECS {
             var networkModule = this.GetModule<ME.ECS.Network.INetworkModuleBase>();
             var data = networkModule.GetSerializer().DeserializeWorld(worldData);
 
-            // Make a ref of current filters to the new state
-            #if FILTERS_STORAGE_LEGACY
-            this.GetState().filters.Clear();
-            data.state.filters = this.GetState().filters;
-            this.GetState().filters = null;
-            #endif
-
             this.SetState<TState>(data.state);
-            #if FILTERS_STORAGE_LEGACY
-            data.state.filters.OnDeserialize(this.GetEntitiesCount());
-            #endif
             statesHistory.AddEvents(data.events.events);
 
             statesHistory.BeginAddEvents();
@@ -676,10 +653,6 @@ namespace ME.ECS {
                 this.id = ++World.registryWorldId;
 
             }
-
-            #if FILTERS_STORAGE_LEGACY
-            ArrayUtils.Resize(this.id, ref FiltersDirectCache.dic);
-            #endif
 
         }
 
@@ -1048,8 +1021,8 @@ namespace ME.ECS {
 
         }
 
-        private List<GlobalEventFrameItem> globalEventFrameItems;
-        private HashSet<long> globalEventFrameEvents;
+        private System.Collections.Generic.List<GlobalEventFrameItem> globalEventFrameItems;
+        private System.Collections.Generic.HashSet<long> globalEventFrameEvents;
 
         internal void InitializeGlobalEvents() {
             
@@ -1091,15 +1064,15 @@ namespace ME.ECS {
 
             } else if (globalEventType == GlobalEventType.Logic) {
 
-                for (int i = 0; i < this.currentState.globalEvents.globalEventLogicItems.Count; ++i) {
+                for (int i = 0; i < this.currentState.globalEvents.globalEventLogicItems.Count(in this.currentState.allocator); ++i) {
 
-                    var item = this.currentState.globalEvents.globalEventLogicItems[i];
+                    var item = this.currentState.globalEvents.globalEventLogicItems[in this.currentState.allocator, i];
                     GlobalEvent.GetEventById(item.globalEvent).Run(in item.data);
 
                 }
 
-                this.currentState.globalEvents.globalEventLogicItems.Clear();
-                this.currentState.globalEvents.globalEventLogicEvents.Clear();
+                this.currentState.globalEvents.globalEventLogicItems.Clear(in this.currentState.allocator);
+                this.currentState.globalEvents.globalEventLogicEvents.Clear(in this.currentState.allocator);
 
             }
 
@@ -1129,7 +1102,7 @@ namespace ME.ECS {
 
             } else if (globalEventType == GlobalEventType.Logic) {
 
-                this.currentState.globalEvents.Remove(globalEvent, in entity);
+                this.currentState.globalEvents.Remove(ref this.currentState.allocator, globalEvent, in entity);
                 
             }
 
@@ -1154,7 +1127,7 @@ namespace ME.ECS {
 
             } else if (globalEventType == GlobalEventType.Logic) {
 
-                this.currentState.globalEvents.Add(globalEvent, in entity);
+                this.currentState.globalEvents.Add(ref this.currentState.allocator, globalEvent, in entity);
                 
             }
 
@@ -1201,10 +1174,10 @@ namespace ME.ECS {
             this.resetState.Initialize(this, freeze: true, restore: false);
             this.resetState.CopyFrom(this.GetState());
             this.resetState.tick = Tick.Zero;
-            this.resetState.structComponents.Merge();
+            this.resetState.structComponents.Merge(in this.resetState.allocator);
             this.hasResetState = true;
 
-            this.currentState.structComponents.Merge();
+            this.currentState.structComponents.Merge(in this.currentState.allocator);
 
         }
 
@@ -1243,13 +1216,13 @@ namespace ME.ECS {
             state.Initialize(this, freeze: false, restore: true);
 
             if (state.storage.nextEntityId > 0) {
-                this.structComponentsNoState.SetEntityCapacity(state.storage.nextEntityId);
-                ComponentsInitializerWorld.Init(state.storage.cache[state.storage.nextEntityId - 1]);
+                this.noStateData.storage.SetEntityCapacity(ref this.noStateData.allocator, state.storage.nextEntityId);
+                ComponentsInitializerWorld.Init(state.storage.cache[in state.allocator, state.storage.nextEntityId - 1]);
             } else {
-                this.structComponentsNoState.SetEntityCapacity(state.storage.AliveCount + state.storage.DeadCount);
+                this.noStateData.storage.SetEntityCapacity(ref this.noStateData.allocator, state.storage.AliveCount + state.storage.DeadCount(in this.currentState.allocator));
             }
 
-            this.structComponentsNoState.Merge();
+            this.noStateData.storage.Merge(in this.noStateData.allocator);
 
         }
 
@@ -1307,14 +1280,12 @@ namespace ME.ECS {
 
             {
                 // Clear entity
-                this.currentState.structComponents.RemoveAll(in to);
-                this.currentState.storage.archetypes.Clear(in to);
+                this.currentState.structComponents.RemoveAll(this.currentState, ref this.currentState.allocator, in to);
             }
 
             {
                 // Copy data
                 this.currentState.structComponents.CopyFrom(in from, in to);
-                this.currentState.storage.archetypes.CopyFrom(in from, in to);
                 this.UpdateFilters(in to);
                 
                 // Copy hierarchy data
@@ -1326,11 +1297,13 @@ namespace ME.ECS {
                 if (copyHierarchy == true) {
 
                     var nodes = from.Read<ME.ECS.Transform.Nodes>();
-                    foreach (var child in nodes.items) {
+                    var e = nodes.items.GetEnumerator(in Worlds.current.currentState.allocator);
+                    while (e.MoveNext() == true) {
                         var newChild = new Entity(EntityFlag.None);
-                        newChild.CopyFrom(child);
+                        newChild.CopyFrom(e.Current);
                         newChild.SetParent(to);
                     }
+                    e.Dispose();
 
                 }
             }
@@ -1343,14 +1316,14 @@ namespace ME.ECS {
         public bool IsAlive(int entityId, ushort generation) {
 
             // Inline manually
-            return this.currentState.storage.cache.arr[entityId].generation == generation;
+            return this.currentState.storage.cache[in this.currentState.allocator, entityId].generation == generation;
             //return this.currentState.storage.IsAlive(entityId, version);
 
         }
 
         public ref readonly Entity GetEntityById(int id) {
 
-            ref var ent = ref this.currentState.storage.GetEntityById(id);
+            ref var ent = ref this.currentState.storage.GetEntityById(in this.currentState.allocator, id);
             if (this.IsAlive(ent.id, ent.generation) == false) return ref Entity.Empty;
 
             return ref ent;
@@ -1363,7 +1336,7 @@ namespace ME.ECS {
             
             this.entitiesCapacity = capacity;
             this.SetEntityCapacityPlugins(capacity);
-            this.SetEntityCapacityInFilters(capacity);
+            this.SetEntityCapacityInFilters(ref this.currentState.allocator, capacity);
 
             Entity maxEntity = default;
             for (int i = 0; i < capacity - curCap; ++i) {
@@ -1378,7 +1351,7 @@ namespace ME.ECS {
                 this.UpdateEntityOnCreate(maxEntity, isNew: true);
             }
 
-            this.currentState.storage.ApplyDead();
+            this.currentState.storage.ApplyDead(ref this.currentState.allocator);
 
         }
 
@@ -1391,10 +1364,10 @@ namespace ME.ECS {
         private ref Entity AddEntity_INTERNAL(string name = null, bool validate = true, EntityFlag flags = EntityFlag.None) {
             
             E.IS_LOGIC_STEP(this);
-            E.IS_WORLD_THREAD("AddEntity");
+            E.IS_WORLD_THREAD();
             
-            var isNew = (validate == true && this.currentState.storage.WillNew());
-            ref var entity = ref this.currentState.storage.Alloc();
+            var isNew = (validate == true && this.currentState.storage.WillNew(in this.currentState.allocator));
+            ref var entity = ref this.currentState.storage.Alloc(ref this.currentState.allocator);
             if (validate == true) this.UpdateEntityOnCreate(in entity, isNew);
             
             if (name != null) {
@@ -1411,7 +1384,7 @@ namespace ME.ECS {
 
             }
 
-            this.currentState.storage.flags.Set(entity.id, flags);
+            this.currentState.storage.flags.Set(in this.currentState.allocator, entity.id, flags);
 
             return ref entity;
 
@@ -1425,34 +1398,27 @@ namespace ME.ECS {
 
         internal void UpdateEntityOnCreate(in Entity entity, bool isNew) {
 
-            #if !FILTERS_STORAGE_LEGACY
             if (isNew == true) {
                 ComponentsInitializerWorld.Init(in entity);
-                this.currentState.storage.versions.Validate(in entity);
+                this.currentState.storage.versions.Validate(ref this.currentState.allocator, in entity);
                 this.CreateEntityPlugins(entity, true);
-                this.CreateEntityInFilters(entity);
+                this.CreateEntityInFilters(ref this.currentState.allocator, entity);
             } else {
                 this.CreateEntityPlugins(entity, false);
             }
-            #else
-            if (isNew == true) ComponentsInitializerWorld.Init(in entity);
-            this.currentState.storage.versions.Validate(in entity);
-            this.CreateEntityPlugins(entity, isNew);
-            this.CreateEntityInFilters(entity);
-            #endif
 
         }
 
         public bool ForEachEntity(ListCopyable<Entity> results) {
 
             if (this.currentState == null) return false;
-            return this.currentState.storage.ForEach(results);
+            return this.currentState.storage.ForEach(in this.currentState.allocator, results);
 
         }
 
-        public ListCopyable<int> GetAliveEntities() {
+        public List<int> GetAliveEntities() {
 
-            if (this.currentState == null) return null;
+            if (this.currentState == null) return default;
             return this.currentState.storage.GetAlive();
 
         }
@@ -1462,7 +1428,7 @@ namespace ME.ECS {
         #endif
         public void OnEntityVersionChanged(in Entity entity) {
             
-            ECSTransformHierarchy.OnEntityVersionChanged(in entity);
+            ECSTransformHierarchy.OnEntityVersionChanged(ref this.currentState.allocator, in entity);
             
         }
 
@@ -1470,16 +1436,16 @@ namespace ME.ECS {
 
             E.IS_ALIVE(in entity);
 
-            if (this.currentState.storage.Dealloc(in entity) == true) {
+            if (this.currentState.storage.Dealloc(ref this.currentState.allocator, in entity) == true) {
 
-                if (cleanUpHierarchy == true) ECSTransformHierarchy.OnEntityDestroy(in entity);
-                this.RemoveFromAllFilters(entity);
+                if (cleanUpHierarchy == true) ECSTransformHierarchy.OnEntityDestroy(ref this.currentState.allocator, in entity);
+                this.RemoveFromAllFilters(ref this.currentState.allocator, entity);
                 this.DestroyEntityPlugins(in entity);
                 #if !ENTITY_TIMERS_DISABLED
-                this.currentState.timers.OnEntityDestroy(in entity);
+                this.currentState.timers.OnEntityDestroy(ref this.currentState.allocator, in entity);
                 #endif
 
-                this.currentState.storage.IncrementGeneration(in entity);
+                this.currentState.storage.IncrementGeneration(in this.currentState.allocator, in entity);
 
                 return true;
 
@@ -1517,7 +1483,7 @@ namespace ME.ECS {
 
         }
 
-        public List<TModule> GetModules<TModule>(List<TModule> output) where TModule : IModuleBase {
+        public System.Collections.Generic.List<TModule> GetModules<TModule>(System.Collections.Generic.List<TModule> output) where TModule : IModuleBase {
 
             output.Clear();
             for (int i = 0, count = this.modules.Count; i < count; ++i) {
@@ -1753,7 +1719,7 @@ namespace ME.ECS {
 
         }
 
-        public NativeBufferArray<Entity> GetEntityStorage() {
+        public MemArrayAllocator<Entity> GetEntityStorage() {
 
             return this.currentState.storage.cache;
 
@@ -2335,8 +2301,8 @@ namespace ME.ECS {
         #endif
         private void PostAdvanceTickForSystem() {
 
-            this.currentState.storage.ApplyDead();
-            this.currentState.structComponents.Merge();
+            this.currentState.storage.ApplyDead(ref this.currentState.allocator);
+            this.currentState.structComponents.Merge(in this.currentState.allocator);
 
             this.currentSystemContext = null;
             this.currentSystemContextFilter = null;
@@ -2685,34 +2651,12 @@ namespace ME.ECS {
                                     #pragma warning restore
                                     if (this.settings.useJobsForSystems == true && jobs == true) {
 
-                                        #if FILTERS_STORAGE_LEGACY
-                                        var arrEntities = system.filter.ToArray();
-                                        
-                                        var filter = this.GetFilter(system.filter.id);
-                                        var currentPools = Pools.current;
-                                        Pools.current = this.currentThreadPools;
-                                        {
-                                            var job = new ForeachFilterJob() {
-                                                deltaTime = fixedDeltaTime,
-                                                slice = arrEntities,
-                                                dataContains = filter.data.dataContains,
-                                                dataVersions = (filter.data.onVersionChangedOnly == 1 ? filter.data.dataVersions : default),
-                                            };
-                                            var jobHandle = job.Schedule(arrEntities.Length, batch);
-                                            jobHandle.Complete();
-                                        }
-                                        arrEntities.Dispose();
-                                        Pools.current = currentPools;
-                                        
-                                        filter.UseVersioned();
-                                        #else
                                         // TODO: Make a job
                                         foreach (var entity in system.filter) {
 
                                             system.AdvanceTick(in entity, fixedDeltaTime);
 
                                         }
-                                        #endif
                                         
                                     } else {
 

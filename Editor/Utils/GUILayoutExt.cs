@@ -215,24 +215,44 @@ namespace ME.ECSEditor {
 		    
 	    }
 
-	    public static void ProgressBar(float value, float max, Color back, Color fill, bool drawLabel = false) {
+        public static void ProgressBar(float value, float max, Color back, Color fill, bool drawLabel = false) {
 
-		    var progress = value / max;
-		    var lineHeight = (drawLabel == true ? 8f : 4f);
-		    Rect rect = EditorGUILayout.GetControlRect(false, lineHeight);
-		    rect.height = lineHeight;
-		    var fillRect = rect;
-		    fillRect.width = progress * rect.width;
-		    EditorGUI.DrawRect(rect, back);
-		    EditorGUI.DrawRect(fillRect, fill);
+            var progress = value / max;
+            var lineHeight = (drawLabel == true ? 8f : 4f);
+            Rect rect = EditorGUILayout.GetControlRect(false, lineHeight);
+            rect.height = lineHeight;
+            var fillRect = rect;
+            fillRect.width = progress * rect.width;
+            EditorGUI.DrawRect(rect, back);
+            EditorGUI.DrawRect(fillRect, fill);
 
-		    if (drawLabel == true) {
+            if (drawLabel == true) {
 			    
-			    EditorGUI.LabelField(rect, string.Format("{0}/{1}", value, max), EditorStyles.centeredGreyMiniLabel);
+                EditorGUI.LabelField(rect, string.Format("{0}/{1}", value, max), EditorStyles.centeredGreyMiniLabel);
 			    
-		    }
+            }
 
-	    }
+        }
+
+        public static void ProgressBar(float value, float max, Color back, Color fill, Color fillTo, GUIContent label) {
+
+            var progress = value / max;
+            var lineHeight = 2f;
+            Rect rect = EditorGUILayout.GetControlRect(false, lineHeight);
+            rect.height = lineHeight;
+            var fillRect = rect;
+            fillRect.width = progress * rect.width;
+            EditorGUI.DrawRect(rect, back);
+            EditorGUI.DrawRect(fillRect, Color.Lerp(fill, fillTo, value / max));
+
+            var labelRect = rect;
+            labelRect.height = 12f;
+            labelRect.y += lineHeight;
+            var style = new GUIStyle(EditorStyles.miniLabel);
+            style.fontSize = 6;
+            EditorGUI.LabelField(labelRect, label, style);
+
+        }
 
 	    public static Entity DrawEntitySelection(World world, in Entity entity, bool checkAlive, bool drawSelectButton = true) {
 		    
@@ -793,13 +813,13 @@ namespace ME.ECSEditor {
 
 						    usedComponents.Remove(addType);
 						    registry.RemoveObject(entity, StorageType.Default);
-						    Worlds.currentWorld.RemoveComponentFromFilter(entity);
+						    Worlds.currentWorld.RemoveComponentFromFilter(ref Worlds.currentWorld.currentState.allocator, entity);
 
 					    } else {
 				                
 						    usedComponents.Add(addType);
 						    registry.SetObject(entity, (IComponentBase)System.Activator.CreateInstance(addType), StorageType.Default);
-						    Worlds.currentWorld.AddComponentToFilter(entity);
+						    Worlds.currentWorld.AddComponentToFilter(ref Worlds.currentWorld.currentState.allocator, entity);
 
 					    }
 

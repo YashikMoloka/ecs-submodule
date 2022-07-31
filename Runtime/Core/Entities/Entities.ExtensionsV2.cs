@@ -52,11 +52,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static ref
-            //#if UNITY_EDITOR
-            readonly
-            //#endif
-            TComponent Read<TComponent>(this in Entity entity) where TComponent : struct, IStructComponent {
+        public static ref readonly TComponent Read<TComponent>(this in Entity entity) where TComponent : struct, IStructComponent {
 
             return ref Worlds.currentWorld.ReadData<TComponent>(in entity);
 
@@ -103,8 +99,25 @@ namespace ME.ECS {
         #endif
         public static Entity SetAs<TComponent>(this in Entity entity, in Entity source) where TComponent : struct, IStructComponent {
 
-            if (AllComponentTypes<TComponent>.isCopyable == false) {
+            #if COMPONENTS_COPYABLE
+            if (AllComponentTypes<TComponent>.isCopyable == true) {
 
+                if (source.Has<TComponent>() == true) {
+
+                    var id = AllComponentTypes<TComponent>.typeId;
+                    var reg = Worlds.current.currentState.structComponents.list[id];
+                    reg.CopyFrom(in source, in entity);
+
+                } else {
+
+                    entity.Remove<TComponent>();
+
+                }
+
+            } else
+            #endif
+            {
+                
                 if (AllComponentTypes<TComponent>.isTag == false) {
 
                     if (source.TryRead(out TComponent c) == true) {
@@ -131,20 +144,6 @@ namespace ME.ECS {
 
                 }
 
-            } else {
-                
-                if (source.Has<TComponent>() == true) {
-
-                    var id = AllComponentTypes<TComponent>.typeId;
-                    var reg = Worlds.current.currentState.structComponents.list[id];
-                    reg.CopyFrom(in source, in entity);
-
-                } else {
-
-                    entity.Remove<TComponent>();
-
-                }
-                
             }
 
             return entity;

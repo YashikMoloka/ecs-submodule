@@ -12,16 +12,20 @@ namespace ME.ECS {
     public static class WorldUtilities {
 
         private static readonly System.Reflection.MethodInfo setComponentTypeIdMethodInfo = typeof(WorldUtilities).GetMethod(nameof(WorldUtilities.SetComponentTypeId));
+        #if !FILTERS_LAMBDA_DISABLED
         private static readonly System.Reflection.MethodInfo setComponentLambdaMethodInfo = typeof(WorldUtilities).GetMethod(nameof(WorldUtilities.SetComponentFilterLambda));
+        #endif
 
         public static bool IsMainThread() {
 
+            if (Worlds.current == null) return true;
             return Unity.Jobs.LowLevel.Unsafe.JobsUtility.IsExecutingJob == false && Worlds.current.mainThread == System.Threading.Thread.CurrentThread;
 
         }
 
         public static bool IsWorldThread() {
 
+            if (Worlds.current == null) return true;
             return Unity.Jobs.LowLevel.Unsafe.JobsUtility.IsExecutingJob == false && Worlds.current.worldThread == System.Threading.Thread.CurrentThread;
 
         }
@@ -67,45 +71,6 @@ namespace ME.ECS {
             state.tick = default;
             state.randomState = default;
             PoolStates<TState>.Recycle(ref state);
-
-        }
-
-        #if FILTERS_STORAGE_LEGACY
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static void Release(ref FiltersStorage storage) {
-
-            if (storage == null) return;
-            PoolClass<FiltersStorage>.Recycle(ref storage);
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static void Release(ref Storage storage) {
-
-            storage.Recycle();
-
-        }
-        #else
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static void Release(ref ME.ECS.FiltersArchetype.FiltersArchetypeStorage storage) {
-
-            storage.Recycle();
-
-        }
-        #endif
-        
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static void Release(ref StructComponentsContainer storage) {
-
-            storage.OnRecycle();
 
         }
 
@@ -283,6 +248,7 @@ namespace ME.ECS {
 
         }
 
+        #if !FILTERS_LAMBDA_DISABLED
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
@@ -302,6 +268,7 @@ namespace ME.ECS {
             ComponentTypes<TComponent>.burstIsFilterLambda.Data = 1;
             
         }
+        #endif
         
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -336,6 +303,7 @@ namespace ME.ECS {
 
         }
 
+        #if COMPONENTS_COPYABLE
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
@@ -344,6 +312,7 @@ namespace ME.ECS {
             return AllComponentTypes<TComponent>.isCopyable;
 
         }
+        #endif
 
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -414,6 +383,7 @@ namespace ME.ECS {
         }
         #endif
 
+        #if COMPONENTS_COPYABLE
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
@@ -422,20 +392,12 @@ namespace ME.ECS {
             AllComponentTypes<TComponent>.isCopyable = true;
 
         }
+        #endif
         
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static void SetComponentAsDisposable<TComponent>() {
-
-            AllComponentTypes<TComponent>.isDisposable = true;
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static void InitComponentTypeId<TComponent>(bool isTag = false, bool isSimple = false, bool isBlittable = false, bool isCopyable = false, bool isDisposable = false, bool isVersioned = false, bool isVersionedNoState = false, bool isShared = false, bool isOneShot = false) {
+        public static void InitComponentTypeId<TComponent>(bool isTag = false, bool isSimple = false, bool isBlittable = false, bool isCopyable = false, bool isVersioned = false, bool isVersionedNoState = false, bool isShared = false, bool isOneShot = false) {
 
             if (isTag == true) WorldUtilities.SetComponentAsTag<TComponent>();
             if (isSimple == true) WorldUtilities.SetComponentAsSimple<TComponent>();
@@ -444,11 +406,12 @@ namespace ME.ECS {
             #if !COMPONENTS_VERSION_NO_STATE_DISABLED
             if (isVersionedNoState == true) WorldUtilities.SetComponentAsVersionedNoState<TComponent>();
             #endif
+            #if COMPONENTS_COPYABLE
             if (isCopyable == true) WorldUtilities.SetComponentAsCopyable<TComponent>();
+            #endif
             #if !SHARED_COMPONENTS_DISABLED
             if (isShared == true) WorldUtilities.SetComponentAsShared<TComponent>();
             #endif
-            if (isDisposable == true) WorldUtilities.SetComponentAsDisposable<TComponent>();
             if (isOneShot == true) WorldUtilities.SetComponentAsOneShot<TComponent>();
 
             WorldUtilities.GetAllComponentTypeId<TComponent>();

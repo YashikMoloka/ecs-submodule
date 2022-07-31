@@ -14,79 +14,6 @@ namespace ME.ECS {
 
     using Collections;
 
-    public struct ComponentTypesCounter {
-
-        public static int counter = -1;
-
-    }
-
-    public struct AllComponentTypesCounter {
-
-        public static int counter = -1;
-
-    }
-
-    public struct OneShotComponentTypesCounter {
-
-        public static int counter = -1;
-
-    }
-
-    public struct ComponentTypesRegistry {
-
-        public static System.Collections.Generic.Dictionary<System.Type, int> allTypeId = new System.Collections.Generic.Dictionary<System.Type, int>();
-        public static System.Collections.Generic.Dictionary<System.Type, int> oneShotTypeId = new System.Collections.Generic.Dictionary<System.Type, int>();
-        public static System.Collections.Generic.Dictionary<System.Type, int> typeId = new System.Collections.Generic.Dictionary<System.Type, int>();
-        public static System.Action reset;
-
-    }
-
-    public struct ComponentTypesLambda {
-
-        public static System.Collections.Generic.Dictionary<int, System.Action<Entity>> itemsSet = new System.Collections.Generic.Dictionary<int, System.Action<Entity>>();
-        public static System.Collections.Generic.Dictionary<int, System.Action<Entity>> itemsRemove = new System.Collections.Generic.Dictionary<int, System.Action<Entity>>();
-
-    }
-
-    public struct ComponentTypes<TComponent> {
-
-        public static readonly Unity.Burst.SharedStatic<int> burstTypeId = Unity.Burst.SharedStatic<int>.GetOrCreate<ComponentTypes<TComponent>, int>();
-        public static readonly Unity.Burst.SharedStatic<byte> burstIsFilterVersioned = Unity.Burst.SharedStatic<byte>.GetOrCreate<ComponentTypes<TComponent>, byte>();
-        public static readonly Unity.Burst.SharedStatic<byte> burstIsFilterLambda = Unity.Burst.SharedStatic<byte>.GetOrCreate<ComponentTypes<TComponent>, byte>();
-        public static int typeId = -1;
-        public static bool isFilterVersioned = false;
-        public static bool isFilterLambda = false;
-
-    }
-
-    public struct OneShotComponentTypes<TComponent> {
-
-        public static int typeId = -1;
-
-    }
-    
-    public struct AllComponentTypes<TComponent> {
-
-        public static readonly Unity.Burst.SharedStatic<int> burstTypeId = Unity.Burst.SharedStatic<int>.GetOrCreate<AllComponentTypes<TComponent>, int>();
-        public static readonly Unity.Burst.SharedStatic<byte> burstIsVersionedNoState = Unity.Burst.SharedStatic<byte>.GetOrCreate<AllComponentTypes<TComponent>, byte>();
-        public static int typeId = -1;
-        public static bool isTag = false;
-        public static bool isVersioned = false;
-        #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-        public static bool isVersionedNoState = false;
-        #endif
-        public static bool isSimple = false;
-        public static bool isBlittable = false;
-        public static bool isCopyable = false;
-        #if !SHARED_COMPONENTS_DISABLED
-        public static bool isShared = false;
-        #endif
-        public static bool isDisposable = false;
-        public static bool isOneShot = false;
-        public static bool isInHash = true;
-
-    }
-
     #if ECS_COMPILE_IL2CPP_OPTIONS
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
@@ -155,6 +82,16 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
+        public static Entity ValidateDataTag<TComponent>(this in Entity entity, bool isTag = true) where TComponent : struct, IComponentBase {
+
+            Worlds.currentWorld.ValidateDataTag<TComponent>(in entity);
+            return entity;
+
+        }
+
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
         public static Entity ValidateDataOneShot<TComponent>(this in Entity entity, bool isTag = false) where TComponent : struct, IComponentOneShot {
 
             Worlds.currentWorld.ValidateDataOneShot<TComponent>(in entity, isTag);
@@ -165,9 +102,9 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static Entity ValidateDataCopyable<TComponent>(this in Entity entity, bool isTag = false) where TComponent : struct, IStructCopyable<TComponent> {
+        public static Entity ValidateDataUnmanaged<TComponent>(this in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase {
 
-            Worlds.currentWorld.ValidateDataCopyable<TComponent>(in entity, isTag);
+            Worlds.currentWorld.ValidateDataUnmanaged<TComponent>(in entity, isTag);
             return entity;
 
         }
@@ -181,7 +118,8 @@ namespace ME.ECS {
             return entity;
 
         }
-
+        
+        #if COMPONENTS_COPYABLE
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
@@ -191,120 +129,19 @@ namespace ME.ECS {
             return entity;
 
         }
-
+        
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static Entity ValidateDataDisposable<TComponent>(this in Entity entity, bool isTag = false) where TComponent : struct, IComponentDisposable {
+        public static Entity ValidateDataCopyable<TComponent>(this in Entity entity, bool isTag = false) where TComponent : struct, IStructCopyable<TComponent> {
 
-            Worlds.currentWorld.ValidateDataDisposable<TComponent>(in entity, isTag);
+            Worlds.currentWorld.ValidateDataCopyable<TComponent>(in entity, isTag);
             return entity;
 
         }
+        #endif
 
     }
-    
-    #if ENTITY_API_VERSION1_DEPRECATED
-    #if ECS_COMPILE_IL2CPP_OPTIONS
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
-    #endif
-    public static partial class EntityExtensionsV1 {
-
-        #region Set/Has/Remove/Read
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static Entity RemoveData<TComponent>(this Entity entity) where TComponent : struct, IStructComponent {
-
-            Worlds.currentWorld.RemoveData<TComponent>(entity);
-            return entity;
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static bool HasData<TComponent>(this Entity entity) where TComponent : struct, IStructComponent {
-
-            return Worlds.currentWorld.HasData<TComponent>(entity);
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static ref
-            //#if UNITY_EDITOR
-            readonly
-            //#endif
-            TComponent ReadData<TComponent>(this in Entity entity) where TComponent : struct, IStructComponent {
-
-            return ref Worlds.currentWorld.ReadData<TComponent>(in entity);
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static ref TComponent GetData<TComponent>(this in Entity entity) where TComponent : struct, IStructComponent {
-
-            return ref Worlds.currentWorld.GetData<TComponent>(in entity);
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static Entity SetData<TComponent>(this in Entity entity) where TComponent : struct, IStructComponent {
-
-            Worlds.currentWorld.SetData<TComponent>(in entity);
-            return entity;
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static Entity SetData<TComponent>(this in Entity entity, ComponentLifetime lifetime) where TComponent : struct, IStructComponent {
-
-            Worlds.currentWorld.SetData<TComponent>(in entity, lifetime);
-            return entity;
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static Entity SetData<TComponent>(this in Entity entity, in TComponent data) where TComponent : struct, IStructComponent {
-
-            Worlds.currentWorld.SetData(in entity, in data);
-            return entity;
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static Entity SetData<TComponent>(this in Entity entity, in TComponent data, ComponentLifetime lifetime) where TComponent : struct, IStructComponent {
-
-            Worlds.currentWorld.SetData(in entity, in data, lifetime);
-            return entity;
-
-        }
-        #endregion
-
-    }
-    #endif
     
     #if ECS_COMPILE_IL2CPP_OPTIONS
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
@@ -404,7 +241,8 @@ namespace ME.ECS {
         public bool IsAlive() {
 
             // Inline manually
-            return this.generation > 0 && Worlds.currentWorld.currentState.storage.cache.arr[this.id].generation == this.generation;
+            var state = Worlds.currentWorld.currentState;
+            return this.generation > 0 && state.storage.cache[in state.allocator, this.id].generation == this.generation;
 
         }
 
@@ -420,9 +258,10 @@ namespace ME.ECS {
 
             // Inline manually
             if (Worlds.currentWorld == null || Worlds.currentWorld.currentState == null) return false;
-            var arr = Worlds.currentWorld.currentState.storage.cache;
-            if (this.id >= arr.Length) return false;
-            return arr.arr[this.id].generation == this.generation;
+            var state = Worlds.currentWorld.currentState;
+            var arr = state.storage.cache;
+            if (this.id >= arr.Length(in state.allocator)) return false;
+            return arr[in state.allocator, this.id].generation == this.generation;
 
         }
 
@@ -576,7 +415,8 @@ namespace ME.ECS {
                 
             }
 
-            return Worlds.currentWorld.currentState.storage.versions.Get(this);
+            var state = Worlds.currentWorld.currentState;
+            return state.storage.versions.Get(in state.allocator, this);
 
         }
 

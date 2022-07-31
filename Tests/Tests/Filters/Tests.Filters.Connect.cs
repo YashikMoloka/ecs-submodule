@@ -1,4 +1,3 @@
-#if !FILTERS_STORAGE_LEGACY
 namespace ME.ECS.Tests {
 
     public class Tests_Filters_Connect {
@@ -83,9 +82,9 @@ namespace ME.ECS.Tests {
                 WorldUtilities.InitComponentTypeId<TestConnectComponent>(false, true, true);
                 ComponentsInitializerWorld.Setup((e) => {
                             
-                    e.ValidateDataBlittable<TestComponent>();
-                    e.ValidateDataBlittable<TestSecondComponent>();
-                    e.ValidateDataBlittable<TestConnectComponent>();
+                    e.ValidateDataUnmanaged<TestComponent>();
+                    e.ValidateDataUnmanaged<TestSecondComponent>();
+                    e.ValidateDataUnmanaged<TestConnectComponent>();
                             
                 });
                 
@@ -101,4 +100,3 @@ namespace ME.ECS.Tests {
     }
 
 }
-#endif

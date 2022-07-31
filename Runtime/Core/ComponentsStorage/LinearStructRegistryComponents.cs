@@ -13,19 +13,7 @@ using tfloat = System.Single;
 namespace ME.ECS {
 
     using ME.ECS.Collections;
-
-    public interface IStructRegistryBase {
-
-        IComponentBase GetObject(Entity entity);
-        bool SetObject(in Entity entity, IComponentBase data, StorageType storageType);
-        #if !SHARED_COMPONENTS_DISABLED
-        IComponentBase GetSharedObject(Entity entity, uint groupId);
-        bool SetSharedObject(in Entity entity, IComponentBase data, uint groupId);
-        bool RemoveObject(in Entity entity, StorageType storageType);
-        #endif
-        bool HasType(System.Type type);
-
-    }
+    using ME.ECS.Collections.V3;
 
     public struct Component<TComponent> where TComponent : struct, IComponentBase {
 
@@ -35,102 +23,6 @@ namespace ME.ECS {
 
     }
 
-    #if ECS_COMPILE_IL2CPP_OPTIONS
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
-     Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
-     Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
-    #endif
-    public abstract partial class StructRegistryBase : IStructRegistryBase, IPoolableRecycle {
-
-        public World world {
-            #if INLINE_METHODS
-            [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            #endif
-            get {
-                return Worlds.currentWorld;
-            }
-        }
-
-        public abstract bool IsNeedToDispose();
-
-        public abstract int GetTypeBit();
-        public abstract int GetAllTypeBit();
-        public abstract bool IsTag();
-
-        public abstract long GetVersion(int entityId);
-        public abstract bool HasChanged(int entityId);
-
-        public abstract void UpdateVersion(in Entity entity);
-        
-        #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-        public abstract void UpdateVersionNoState(in Entity entity);
-        #endif
-        
-        public abstract bool HasType(System.Type type);
-        public abstract IComponentBase GetObject(Entity entity);
-        public abstract bool SetObject(in Entity entity, IComponentBase data, StorageType storageType);
-        public abstract bool SetObject(in Entity entity, UnsafeData buffer, StorageType storageType);
-        public abstract bool RemoveObject(in Entity entity, StorageType storageType);
-        #if !SHARED_COMPONENTS_DISABLED
-        public abstract System.Collections.Generic.ICollection<uint> GetSharedGroups(Entity entity);
-        public abstract IComponentBase GetSharedObject(Entity entity, uint groupId);
-        public abstract bool SetSharedObject(in Entity entity, IComponentBase data, uint groupId);
-        #endif
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract void Merge();
-
-        public abstract void CopyFrom(StructRegistryBase other);
-
-        public abstract void CopyFrom(in Entity from, in Entity to);
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract bool Validate(int capacity);
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract bool Has(in Entity entity);
-
-        #if !SHARED_COMPONENTS_DISABLED
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract bool HasShared(in Entity entity, uint groupId);
-        #endif
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract bool Remove(in Entity entity, bool clearAll = false);
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract void OnRecycle();
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract void Recycle();
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract StructRegistryBase Clone();
-
-        public abstract int GetCustomHash();
-
-        public virtual UnsafeData CreateObjectUnsafe(in Entity entity) {
-            throw new System.Exception("Object must be unmanaged to use CreateObjectUnsafe");
-        }
-
-    }
-    
     #if !SHARED_COMPONENTS_DISABLED
     public static class SharedGroupDataAPI<TComponent> where TComponent : struct, IComponentBase {
 
@@ -343,245 +235,6 @@ namespace ME.ECS {
     #endif
 
     #if ECS_COMPILE_IL2CPP_OPTIONS
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
-     Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
-     Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
-    #endif
-    public abstract partial class StructComponentsBase<TComponent> : StructRegistryBase where TComponent : struct, IComponentBase {
-
-        #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-        // We don't need to serialize this field
-        internal BufferArray<uint> versionsNoState;
-        #endif
-        #if !SHARED_COMPONENTS_DISABLED
-        // Shared data
-        [ME.ECS.Serializer.SerializeField]
-        internal SharedDataStorageGroup<TComponent> sharedStorage;
-        #endif
-        
-        public override int GetCustomHash() => 0;
-
-        public virtual void UpdateVersion(ref Component<TComponent> bucket) {
-            
-            if (AllComponentTypes<TComponent>.isVersioned == true) {
-                bucket.version = this.world.GetCurrentTick();
-            }
-
-        }
-        
-        #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-        public uint GetVersionNotStated(in Entity entity) {
-
-            return this.versionsNoState.arr[entity.id];
-
-        }
-        #endif
-
-        public override bool IsTag() {
-
-            return WorldUtilities.IsComponentAsTag<TComponent>();
-
-        }
-
-        public override int GetTypeBit() {
-
-            return WorldUtilities.GetComponentTypeId<TComponent>();
-
-        }
-
-        public override int GetAllTypeBit() {
-
-            return WorldUtilities.GetAllComponentTypeId<TComponent>();
-
-        }
-
-        #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public override void UpdateVersionNoState(in Entity entity) {
-
-            if (AllComponentTypes<TComponent>.isVersionedNoState == true) ++this.versionsNoState.arr[entity.id];
-
-        }
-        #endif
-
-        public override StructRegistryBase Clone() {
-
-            var reg = this.SpawnInstance();
-            ME.WeakRef.Reg(reg);
-            this.Merge();
-            reg.CopyFrom(this);
-            return reg;
-
-        }
-
-        protected virtual StructRegistryBase SpawnInstance() {
-
-            return PoolRegistries.Spawn<TComponent>();
-
-        }
-
-        public override void OnRecycle() {
-
-            #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-            if (AllComponentTypes<TComponent>.isVersionedNoState == true) PoolArray<uint>.Recycle(ref this.versionsNoState);
-            #endif
-            #if !SHARED_COMPONENTS_DISABLED
-            if (AllComponentTypes<TComponent>.isShared == true) SharedGroupsAPI<TComponent>.OnRecycle(ref this.sharedStorage);
-            #endif
-            
-        }
-
-        public override bool Validate(int capacity) {
-            
-            #if !SHARED_COMPONENTS_DISABLED
-            if (AllComponentTypes<TComponent>.isShared == true) SharedGroupsAPI<TComponent>.Validate(ref this.sharedStorage, capacity);
-            #endif
-            #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-            if (AllComponentTypes<TComponent>.isVersionedNoState == true) ArrayUtils.Resize(capacity, ref this.versionsNoState, true);
-            #endif
-            
-            #if FILTERS_STORAGE_LEGACY
-            this.world.currentState.storage.archetypes.Validate(capacity);
-            #endif
-            
-            return false;
-
-        }
-
-        public override bool HasType(System.Type type) {
-
-            return typeof(TComponent) == type;
-
-        }
-
-        #if !SHARED_COMPONENTS_DISABLED
-        public override System.Collections.Generic.ICollection<uint> GetSharedGroups(Entity entity) {
-
-            return SharedGroupsAPI<TComponent>.GetGroups(ref this.sharedStorage);
-
-        }
-
-        public override IComponentBase GetSharedObject(Entity entity, uint groupId) {
-
-            if (SharedGroupsAPI<TComponent>.Has(ref this.sharedStorage, entity.id, groupId) == false) return null;
-            return SharedGroupsAPI<TComponent>.Get(ref this.sharedStorage, entity.id, groupId);
-
-        }
-
-        public override bool SetSharedObject(in Entity entity, IComponentBase data, uint groupId) {
-            
-            E.IS_ALIVE(in entity);
-
-            SharedGroupsAPI<TComponent>.Set(ref this.sharedStorage, entity.id, groupId, (TComponent)data);
-            
-            var componentIndex = ComponentTypes<TComponent>.typeId;
-            if (componentIndex >= 0) this.world.currentState.storage.archetypes.Set<TComponent>(in entity);
-
-            return true;
-            
-        }
-        
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public override bool HasShared(in Entity entity, uint groupId) {
-
-            E.IS_ALIVE(in entity);
-
-            return SharedGroupsAPI<TComponent>.Has(ref this.sharedStorage, entity.id, groupId);
-
-        }
-        #endif
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public abstract void Replace(ref Component<TComponent> bucket, in TComponent data);
-        
-        #if !SHARED_COMPONENTS_DISABLED
-        private struct ElementCopy : IArrayElementCopy<SharedDataStorage<TComponent>> {
-
-            public void Copy(in SharedDataStorage<TComponent> @from, ref SharedDataStorage<TComponent> to) {
-                
-                to.data = from.data;
-                ArrayUtils.Copy(from.states, ref to.states);
-                
-            }
-
-            public void Recycle(ref SharedDataStorage<TComponent> item) {
-                
-                PoolArray<bool>.Recycle(ref item.states);
-                item.data = default;
-                item = default;
-                
-            }
-
-        }
-        #endif
-
-        public override void CopyFrom(in Entity from, in Entity to) {
-
-            if (typeof(TComponent) == typeof(ME.ECS.Views.ViewComponent)) {
-
-                var view = from.Read<ME.ECS.Views.ViewComponent>();
-                if (view.viewInfo.entity == from) {
-
-                    to.ReplaceView(view.viewInfo.prefabSourceId);
-
-                }
-
-                return;
-
-            }
-
-            var taskList = PoolListCopyable<StructComponentsContainer.NextTickTask>.Spawn(2);
-            foreach (var task in this.world.currentState.structComponents.nextTickTasks) {
-                if (task.entity == from) {
-                    var item = task;
-                    item.entity = to;
-                    taskList.Add(item);
-                }
-            }
-
-            foreach (var task in taskList) {
-                this.world.currentState.structComponents.nextTickTasks.Add(task);
-            }
-            PoolListCopyable<StructComponentsContainer.NextTickTask>.Recycle(ref taskList);
-            
-            #if !SHARED_COMPONENTS_DISABLED
-            if (AllComponentTypes<TComponent>.isShared == true) SharedGroupsAPI<TComponent>.CopyFrom(ref this.sharedStorage, in from, in to);
-            #endif
-            if (this.CopyFromState(in from, in to) > 0) {
-
-                if (ComponentTypes<TComponent>.typeId >= 0) this.world.currentState.storage.archetypes.Set<TComponent>(in to);
-
-            } else {
-
-                if (ComponentTypes<TComponent>.typeId >= 0) this.world.currentState.storage.archetypes.Remove<TComponent>(in to);
-
-            }
-
-        }
-
-        protected abstract byte CopyFromState(in Entity from, in Entity to);
-
-        public override void CopyFrom(StructRegistryBase other) {
-
-            var _other = (StructComponentsBase<TComponent>)other;
-            #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-            if (AllComponentTypes<TComponent>.isVersionedNoState == true) _other.versionsNoState = this.versionsNoState;
-            #endif
-            #if !SHARED_COMPONENTS_DISABLED
-            if (AllComponentTypes<TComponent>.isShared == true) SharedGroupsAPI<TComponent>.CopyFrom(ref this.sharedStorage, _other.sharedStorage, new ElementCopy());
-            #endif
-            
-        }
-
-    }
-    
-    #if ECS_COMPILE_IL2CPP_OPTIONS
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
@@ -643,19 +296,7 @@ namespace ME.ECS {
 
             }
             
-            public void CopyFrom(in NextTickTask other) {
-
-                this.entity = other.entity;
-                this.storageType = other.storageType;
-                this.dataIndex = other.dataIndex;
-                this.data.CopyFrom(in other.data);
-                this.lifetime = other.lifetime;
-                this.secondsLifetime = other.secondsLifetime;
-                this.destroyEntity = other.destroyEntity;
-
-            }
-            
-            public void Recycle() {
+            public void Dispose(ref MemoryAllocator allocator) {
 
                 this.dataIndex = default;
                 this.storageType = default;
@@ -663,18 +304,10 @@ namespace ME.ECS {
                 this.lifetime = default;
                 this.secondsLifetime = default;
                 this.destroyEntity = default;
-                this.data.Dispose();
+                this.data.Dispose(ref allocator);
 
             }
             
-            public NextTickTask Clone() {
-
-                var copy = new NextTickTask();
-                copy.CopyFrom(this);
-                return copy;
-
-            }
-
             public bool Equals(NextTickTask other) {
                 return this.entity.Equals(other.entity) &&
                        this.dataIndex == other.dataIndex &&
@@ -697,7 +330,7 @@ namespace ME.ECS {
         }
 
         [ME.ECS.Serializer.SerializeField]
-        internal HashSetCopyable<NextTickTask> nextTickTasks;
+        internal ME.ECS.Collections.MemoryAllocator.HashSet<NextTickTask> nextTickTasks;
 
         [ME.ECS.Serializer.SerializeField]
         internal BufferArray<StructRegistryBase> list;
@@ -707,7 +340,9 @@ namespace ME.ECS {
         private bool isCreated;
 
         [ME.ECS.Serializer.SerializeField]
-        private ListCopyable<int> dirtyMap;
+        private ME.ECS.Collections.MemoryAllocator.List<int> dirtyMap;
+
+        public UnmanagedComponentsStorage unmanagedComponentsStorage;
 
         public bool IsCreated() {
 
@@ -715,26 +350,28 @@ namespace ME.ECS {
 
         }
 
-        public void Initialize(bool freeze) {
+        public void Initialize(ref MemoryAllocator allocator, bool freeze) {
 
-            this.nextTickTasks = PoolHashSetCopyable<NextTickTask>.Spawn();
-            this.dirtyMap = PoolListCopyable<int>.Spawn(10);
+            this.nextTickTasks = new ME.ECS.Collections.MemoryAllocator.HashSet<NextTickTask>(ref allocator, 10);
+            this.dirtyMap = new ME.ECS.Collections.MemoryAllocator.List<int>(ref allocator, 10);
             
             this.entitiesIndexer = new EntitiesIndexer();
-            this.entitiesIndexer.Initialize(100);
+            this.entitiesIndexer.Initialize(ref allocator, 100);
 
             ArrayUtils.Resize(100, ref this.list, false);
+            
+            this.unmanagedComponentsStorage.Initialize();
             this.isCreated = true;
-
+            
         }
 
-        public void Merge() {
+        public void Merge(in MemoryAllocator allocator) {
 
-            if (this.dirtyMap == null) return;
+            if (this.dirtyMap.isCreated == false) return;
 
-            for (int i = 0, count = this.dirtyMap.Count; i < count; ++i) {
+            for (int i = 0, count = this.dirtyMap.Count(in allocator); i < count; ++i) {
 
-                var idx = this.dirtyMap[i];
+                var idx = this.dirtyMap[in allocator, i];
                 if (idx < 0 || idx >= this.list.Count) {
                     UnityEngine.Debug.LogError($"DirtyMap: Idx {idx} is out of range [0..{this.list.Count})");
                     continue;
@@ -742,8 +379,8 @@ namespace ME.ECS {
                 this.list.arr[idx].Merge();
 
             }
-
-            this.dirtyMap.Clear();
+            
+            this.dirtyMap.Clear(in allocator);
 
         }
 
@@ -778,9 +415,9 @@ namespace ME.ECS {
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
         #endif
-        public void SetEntityCapacity(int capacity) {
+        public void SetEntityCapacity(ref MemoryAllocator allocator, int capacity) {
 
-            this.entitiesIndexer.Validate(capacity);
+            this.entitiesIndexer.Validate(ref allocator, capacity);
             
             // Update all known structs
             for (int i = 0, length = this.list.Length; i < length; ++i) {
@@ -790,7 +427,7 @@ namespace ME.ECS {
 
                     if (item.Validate(capacity) == true) {
 
-                        this.dirtyMap.Add(i);
+                        this.dirtyMap.Add(ref allocator, i);
 
                     }
 
@@ -805,9 +442,9 @@ namespace ME.ECS {
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
         #endif
-        public void OnEntityCreate(in Entity entity) {
+        public void OnEntityCreate(ref MemoryAllocator allocator, in Entity entity) {
 
-            this.entitiesIndexer.Validate(entity.id);
+            this.entitiesIndexer.Validate(ref allocator, entity.id);
             
             // Update all known structs
             for (int i = 0, length = this.list.Length; i < length; ++i) {
@@ -832,25 +469,48 @@ namespace ME.ECS {
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
         #endif
-        public unsafe void RemoveAll(in Entity entity) {
+        public void RemoveAll(State state, ref MemoryAllocator allocator, in Entity entity) {
 
             E.IS_ALIVE(in entity);
 
-            var list = this.entitiesIndexer.Get(entity.id);
-            if (list != null) {
+            ref var list = ref this.entitiesIndexer.Get(in allocator, entity.id);
+            if (list.isCreated == true) {
 
-                foreach (var index in list) {
+                if (state == null) {
 
-                    var item = this.list.arr[index];
-                    if (item != null) {
+                    var e = list.GetEnumerator(in allocator);
+                    while (e.MoveNext() == true) {
 
-                        item.Remove(in entity, clearAll: true);
+                        var index = e.Current;
+                        var item = this.list.arr[index];
+                        if (item != null) {
+
+                            item.Remove(in entity, clearAll: true);
+
+                        }
 
                     }
+                    e.Dispose();
+
+                } else {
+
+                    var e = list.GetEnumerator(state);
+                    while (e.MoveNext() == true) {
+
+                        var index = e.Current;
+                        var item = this.list.arr[index];
+                        if (item != null) {
+
+                            item.Remove(in entity, clearAll: true);
+
+                        }
+
+                    }
+                    e.Dispose();
 
                 }
 
-                list.Clear();
+                list.Clear(in allocator);
 
             }
 
@@ -1014,8 +674,118 @@ namespace ME.ECS {
 
         }
         #endregion
+        
+        #region Unmanaged
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        public void ValidateUnmanaged<TComponent>(ref MemoryAllocator allocator, bool isTag = false) where TComponent : struct, IComponentBase {
 
-        #region BlittableCopyable
+            var code = WorldUtilities.GetAllComponentTypeId<TComponent>();
+            if (isTag == true) WorldUtilities.SetComponentAsTag<TComponent>();
+            this.ValidateUnmanaged<TComponent>(ref allocator, code, isTag);
+
+        }
+
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        public void ValidateUnmanaged<TComponent>(ref MemoryAllocator allocator, in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase {
+
+            var code = WorldUtilities.GetAllComponentTypeId<TComponent>();
+            this.ValidateUnmanaged<TComponent>(ref allocator, code, isTag);
+            var reg = (StructComponentsUnmanaged<TComponent>)this.list.arr[code];
+            reg.Validate(entity.id);
+
+        }
+
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        private void ValidateUnmanaged<TComponent>(ref MemoryAllocator allocator, int code, bool isTag) where TComponent : struct, IComponentBase {
+
+            this.unmanagedComponentsStorage.ValidateTypeId<TComponent>(ref allocator, code);
+
+            if (ArrayUtils.WillResize(code, ref this.list) == true) {
+
+                ArrayUtils.Resize(code, ref this.list, true);
+
+            }
+
+            if (this.list.arr[code] == null) {
+
+                var instance = PoolRegistries.SpawnUnmanaged<TComponent>();
+                this.list.arr[code] = instance;
+
+            }
+
+        }
+        #endregion
+        
+        #region Tags
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        public void ValidateTag<TComponent>(bool isTag = true) where TComponent : struct, IComponentBase {
+
+            var code = WorldUtilities.GetAllComponentTypeId<TComponent>();
+            WorldUtilities.SetComponentAsTag<TComponent>();
+            this.ValidateTag<TComponent>(code, isTag);
+
+        }
+
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        public void ValidateTag<TComponent>(in Entity entity, bool isTag = true) where TComponent : struct, IComponentBase {
+
+            var code = WorldUtilities.GetAllComponentTypeId<TComponent>();
+            this.ValidateTag<TComponent>(code);
+            var reg = (StructComponentsTag<TComponent>)this.list.arr[code];
+            reg.Validate(entity.id);
+
+        }
+
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        private void ValidateTag<TComponent>(int code, bool isTag = true) where TComponent : struct, IComponentBase {
+
+            if (ArrayUtils.WillResize(code, ref this.list) == true) {
+
+                ArrayUtils.Resize(code, ref this.list, true);
+
+            }
+
+            if (this.list.arr[code] == null) {
+
+                var instance = PoolRegistries.SpawnTag<TComponent>();
+                this.list.arr[code] = instance;
+
+            }
+
+        }
+        #endregion
+
+        #if COMPONENTS_COPYABLE
         #if ECS_COMPILE_IL2CPP_OPTIONS
         [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
@@ -1066,9 +836,9 @@ namespace ME.ECS {
             }
 
         }
-        #endregion
+        #endif
 
-        #region Copyable
+        #if COMPONENTS_COPYABLE
         #if ECS_COMPILE_IL2CPP_OPTIONS
         [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
@@ -1119,34 +889,7 @@ namespace ME.ECS {
             }
 
         }
-        #endregion
-
-        #region Disposable
-        #if ECS_COMPILE_IL2CPP_OPTIONS
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
-         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
-         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
         #endif
-        public void ValidateDisposable<TComponent>(bool isTag = false) where TComponent : struct, IComponentBase, IComponentDisposable {
-
-            var code = WorldUtilities.GetAllComponentTypeId<TComponent>();
-            if (isTag == true) WorldUtilities.SetComponentAsTag<TComponent>();
-            this.ValidateDisposable<TComponent>(code, isTag);
-
-        }
-
-        #if ECS_COMPILE_IL2CPP_OPTIONS
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
-         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
-         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
-        #endif
-        public void ValidateDisposable<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase, IComponentDisposable {
-
-            var code = WorldUtilities.GetAllComponentTypeId<TComponent>();
-            this.ValidateDisposable<TComponent>(code, isTag);
-            this.list.arr[code].Validate(entity.id);
-
-        }
 
         #if ECS_COMPILE_IL2CPP_OPTIONS
         [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
@@ -1156,35 +899,9 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        private void ValidateDisposable<TComponent>(int code, bool isTag) where TComponent : struct, IComponentBase, IComponentDisposable {
+        public bool HasBit(in MemoryAllocator allocator, in Entity entity, int bit) {
 
-            if (ArrayUtils.WillResize(code, ref this.list) == true) {
-
-                ArrayUtils.Resize(code, ref this.list, true);
-
-            }
-
-            if (this.list.arr[code] == null) {
-
-                var instance = PoolRegistries.SpawnDisposable<TComponent>();
-                this.list.arr[code] = instance;
-
-            }
-
-        }
-        #endregion
-
-        #if ECS_COMPILE_IL2CPP_OPTIONS
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
-         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
-         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
-        #endif
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public bool HasBit(in Entity entity, int bit) {
-
-            return this.entitiesIndexer.Has(entity.id, bit);
+            return this.entitiesIndexer.Has(in allocator, entity.id, bit);
             
         }
 
@@ -1212,10 +929,23 @@ namespace ME.ECS {
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
         #endif
-        public void OnRecycle() {
+        public void OnRecycle(ref MemoryAllocator allocator) {
 
-            this.entitiesIndexer.Recycle();
-            ArrayUtils.Recycle(ref this.nextTickTasks, new CopyTask());
+            this.entitiesIndexer.Dispose(ref allocator);
+            
+            if (this.nextTickTasks.isCreated == true) {
+
+                var e = this.nextTickTasks.GetEnumerator(in allocator);
+                while (e.MoveNext() == true) {
+
+                    var task = e.Current;
+                    task.Dispose(ref allocator);
+
+                }
+                e.Dispose();
+                this.nextTickTasks.Dispose(ref allocator);
+
+            }
             
             if (this.list.arr != null) {
 
@@ -1234,7 +964,9 @@ namespace ME.ECS {
 
             }
 
-            if (this.dirtyMap != null) PoolListCopyable<int>.Recycle(ref this.dirtyMap);
+            if (this.dirtyMap.isCreated == true) this.dirtyMap.Dispose(ref allocator);
+            
+            this.unmanagedComponentsStorage.Dispose();
 
             this.isCreated = default;
 
@@ -1249,23 +981,6 @@ namespace ME.ECS {
 
                 var reg = this.list.arr[i];
                 if (reg != null) reg.CopyFrom(in from, in to);
-
-            }
-
-        }
-
-        private struct CopyTask : IArrayElementCopy<NextTickTask> {
-
-            public void Copy(in NextTickTask @from, ref NextTickTask to) {
-
-                to.CopyFrom(from);
-
-            }
-
-            public void Recycle(ref NextTickTask item) {
-
-                item.Recycle();
-                item = default;
 
             }
 
@@ -1311,22 +1026,12 @@ namespace ME.ECS {
         #endif
         public void CopyFrom(StructComponentsContainer other) {
 
-            //this.OnRecycle();
-
-            this.entitiesIndexer.CopyFrom(in other.entitiesIndexer);
-
-            ArrayUtils.Copy(other.dirtyMap, ref this.dirtyMap);
-
             this.isCreated = other.isCreated;
-
-            {
-
-                ArrayUtils.Copy(other.nextTickTasks, ref this.nextTickTasks, new CopyTask());
-                
-            }
-
-            //ArrayUtils.Copy(other.nextFrameTasks, ref this.nextFrameTasks, new CopyTask());
-            //ArrayUtils.Copy(other.nextTickTasks, ref this.nextTickTasks, new CopyTask());
+            this.unmanagedComponentsStorage = other.unmanagedComponentsStorage;
+            this.entitiesIndexer = other.entitiesIndexer;
+            this.dirtyMap = other.dirtyMap;
+            this.nextTickTasks = other.nextTickTasks;
+            
             ArrayUtils.Copy(other.list, ref this.list, new CopyRegistry());
 
         }
@@ -1341,6 +1046,29 @@ namespace ME.ECS {
     public partial class World {
 
         private Filter entitiesOneShotFilter;
+
+        public struct NoState {
+
+            public StructComponentsContainer storage;
+            public MemoryAllocator allocator;
+
+            public void Initialize() {
+
+                this.allocator.Initialize(1024 * 1024, -1);
+                this.storage.Initialize(ref this.allocator, true);
+                
+            }
+
+            public void Dispose() {
+                
+                this.storage.OnRecycle(ref this.allocator);
+                this.allocator.Dispose();
+                
+            }
+
+        }
+
+        public NoState noStateData;
         
         public ref StructComponentsContainer GetStructComponents() {
 
@@ -1348,9 +1076,9 @@ namespace ME.ECS {
 
         }
 
-        public ref StructComponentsContainer GetNoStateStructComponents() {
+        public ref NoState GetNoStateData() {
 
-            return ref this.structComponentsNoState;
+            return ref this.noStateData;
 
         }
 
@@ -1360,14 +1088,14 @@ namespace ME.ECS {
 
         public void IncrementEntityVersion(in Entity entity) {
 
-            this.currentState.storage.versions.Increment(in entity);
+            this.currentState.storage.versions.Increment(in this.currentState.allocator, in entity);
             
         }
 
         partial void SetEntityCapacityPlugin1(int capacity) {
 
-            this.structComponentsNoState.SetEntityCapacity(capacity);
-            this.currentState.structComponents.SetEntityCapacity(capacity);
+            this.noStateData.storage.SetEntityCapacity(ref this.noStateData.allocator, capacity);
+            this.currentState.structComponents.SetEntityCapacity(ref this.currentState.allocator, capacity);
 
         }
 
@@ -1378,8 +1106,8 @@ namespace ME.ECS {
 
             if (isNew == true) {
                 
-                this.structComponentsNoState.SetEntityCapacity(entity.id);
-                this.currentState.structComponents.OnEntityCreate(in entity);
+                this.noStateData.storage.SetEntityCapacity(ref this.noStateData.allocator, entity.id);
+                this.currentState.structComponents.OnEntityCreate(ref this.currentState.allocator, in entity);
                 
             }
 
@@ -1390,18 +1118,17 @@ namespace ME.ECS {
         #endif
         partial void DestroyEntityPlugin1(Entity entity) {
 
-            this.structComponentsNoState.RemoveAll(in entity);
-            this.currentState.structComponents.RemoveAll(in entity);
-            this.currentState.storage.archetypes.Clear(in entity);
+            this.noStateData.storage.RemoveAll(null, ref this.noStateData.allocator, in entity);
+            this.currentState.structComponents.RemoveAll(this.currentState, ref this.currentState.allocator, in entity);
 
         }
 
-        public void Register(ref StructComponentsContainer componentsContainer, bool freeze, bool restore) {
+        public void Register(ref MemoryAllocator allocator, ref StructComponentsContainer componentsContainer, bool freeze, bool restore) {
 
             if (componentsContainer.IsCreated() == false) {
 
                 //componentsContainer = new StructComponentsContainer();
-                componentsContainer.Initialize(freeze);
+                componentsContainer.Initialize(ref allocator, freeze);
 
             }
 
@@ -1425,7 +1152,7 @@ namespace ME.ECS {
         #endif
         public bool HasDataBit(in Entity entity, int bit) {
 
-            return this.currentState.structComponents.HasBit(in entity, bit);
+            return this.currentState.structComponents.HasBit(in this.currentState.allocator, in entity, bit);
 
         }
 
@@ -1446,15 +1173,21 @@ namespace ME.ECS {
 
         }
 
-        public void ValidateDataOneShot<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase, IComponentOneShot {
+        public void ValidateDataTag<TComponent>(in Entity entity) where TComponent : struct, IComponentBase {
 
-            this.structComponentsNoState.ValidateOneShot<TComponent>(in entity, isTag);
+            this.currentState.structComponents.ValidateTag<TComponent>(in entity);
 
         }
 
-        public void ValidateDataCopyable<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase, IStructCopyable<TComponent> {
+        public void ValidateDataOneShot<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase, IComponentOneShot {
 
-            this.currentState.structComponents.ValidateCopyable<TComponent>(in entity, isTag);
+            this.noStateData.storage.ValidateOneShot<TComponent>(in entity, isTag);
+
+        }
+
+        public void ValidateDataUnmanaged<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase {
+
+            this.currentState.structComponents.ValidateUnmanaged<TComponent>(ref this.currentState.allocator, in entity, isTag);
 
         }
 
@@ -1464,17 +1197,19 @@ namespace ME.ECS {
 
         }
 
+        #if COMPONENTS_COPYABLE
+        public void ValidateDataCopyable<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase, IStructCopyable<TComponent> {
+
+            this.currentState.structComponents.ValidateCopyable<TComponent>(in entity, isTag);
+
+        }
+
         public void ValidateDataBlittableCopyable<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase, IStructCopyable<TComponent> {
 
             this.currentState.structComponents.ValidateBlittableCopyable<TComponent>(in entity, isTag);
 
         }
-
-        public void ValidateDataDisposable<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentDisposable {
-
-            this.currentState.structComponents.ValidateDisposable<TComponent>(in entity, isTag);
-
-        }
+        #endif
 
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -1484,13 +1219,13 @@ namespace ME.ECS {
             #if !ENTITY_TIMERS_DISABLED
             if (step == ComponentLifetime.NotifyAllSystemsBelow) {
                 
-                this.currentState.timers.Update(deltaTime);
+                this.currentState.timers.Update(ref this.currentState.allocator, deltaTime);
                 
             }
             #endif
         
-            this.UseLifetimeStep(step, deltaTime, ref this.currentState.structComponents);
-            this.UseLifetimeStep(step, deltaTime, ref this.structComponentsNoState);
+            this.UseLifetimeStep(ref this.currentState.allocator, step, deltaTime, ref this.currentState.structComponents);
+            this.UseLifetimeStep(ref this.noStateData.allocator, step, deltaTime, ref this.noStateData.storage);
             
         }
 
@@ -1510,18 +1245,21 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        private unsafe void UseLifetimeStep(ComponentLifetime step, tfloat deltaTime, ref StructComponentsContainer structComponentsContainer) {
+        private unsafe void UseLifetimeStep(ref MemoryAllocator allocator, ComponentLifetime step, tfloat deltaTime, ref StructComponentsContainer structComponentsContainer) {
 
-            var list = structComponentsContainer.nextTickTasks;
-            if (list.Count > 0) {
+            ref var list = ref structComponentsContainer.nextTickTasks;
+            if (list.Count(in allocator) > 0) {
 
                 // We need to allocate temporary list to store entities
                 // because on entity.Destroy we clean up all data including tasks list
-                var tempList = stackalloc Entity[list.Count];
+                var tempList = stackalloc Entity[list.Count(in allocator)];
                 var k = 0;
                 var cnt = 0;
-                foreach (ref var task in list) {
-                    
+                var e = list.GetEnumerator(in allocator);
+                while (e.MoveNext() == true) {
+
+                    var idx = e.Index;
+                    ref var task = ref list.GetByIndex(in allocator, idx);
                     var taskStep = task.GetStep();
                     if (taskStep != step) continue;
                     
@@ -1531,8 +1269,7 @@ namespace ME.ECS {
                             
                             // Remove task on complete
                             if (task.destroyEntity == true) tempList[k++] = task.entity;
-                            task.Recycle();
-                            task = default;
+                            task.Dispose(ref allocator);
                             ++cnt;
 
                         }
@@ -1544,15 +1281,16 @@ namespace ME.ECS {
                     }
                     
                 }
+                e.Dispose();
 
                 for (int i = 0; i < k; ++i) {
                     tempList[i].Destroy();
                 }
                 
-                if (cnt == list.Count) {
+                if (cnt == list.Count(in allocator)) {
                     
                     // All is null
-                    list.Clear();
+                    list.Clear(in allocator);
                     
                 }
 
@@ -1566,6 +1304,7 @@ namespace ME.ECS {
         public long GetDataVersion<TComponent>(in Entity entity) where TComponent : struct, IVersioned {
             
             E.IS_ALIVE(in entity);
+            E.IS_TAG<TComponent>(in entity);
 
             if (AllComponentTypes<TComponent>.isVersioned == false) return 0L;
             var reg = (StructComponentsBase<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
@@ -1670,7 +1409,8 @@ namespace ME.ECS {
             if (groupId == 0 && entity.Has<ME.ECS.DataConfigs.DataConfig.SharedData>() == true) {
 
                 ref readonly var sharedData = ref entity.Read<ME.ECS.DataConfigs.DataConfig.SharedData>();
-                if (sharedData.archetypeToId.TryGetValue(AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
+                ref var allocator = ref Worlds.current.currentState.allocator;
+                if (sharedData.archetypeToId.TryGetValue(in allocator, AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
 
                     return ref this.ReadSharedData<TComponent>(in entity, innerGroupId);
 
@@ -1701,7 +1441,8 @@ namespace ME.ECS {
             if (groupId == 0 && entity.Has<ME.ECS.DataConfigs.DataConfig.SharedData>() == true) {
 
                 ref readonly var sharedData = ref entity.Read<ME.ECS.DataConfigs.DataConfig.SharedData>();
-                if (sharedData.archetypeToId.TryGetValue(AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
+                ref var allocator = ref Worlds.current.currentState.allocator;
+                if (sharedData.archetypeToId.TryGetValue(in allocator, AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
 
                     return this.HasSharedData<TComponent>(in entity, innerGroupId);
 
@@ -1727,7 +1468,8 @@ namespace ME.ECS {
             if (groupId == 0 && entity.Has<ME.ECS.DataConfigs.DataConfig.SharedData>() == true) {
 
                 ref readonly var sharedData = ref entity.Read<ME.ECS.DataConfigs.DataConfig.SharedData>();
-                if (sharedData.archetypeToId.TryGetValue(AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
+                ref var allocator = ref Worlds.current.currentState.allocator;
+                if (sharedData.archetypeToId.TryGetValue(in allocator, AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
 
                     return ref this.GetSharedData<TComponent>(in entity, innerGroupId);
 
@@ -1743,19 +1485,18 @@ namespace ME.ECS {
 
                 E.IS_LOGIC_STEP(this);
 
-                if (this.currentState.structComponents.entitiesIndexer.GetCount(entity.id) == 0 &&
-                    (this.currentState.storage.flags.Get(entity.id) & (byte)EntityFlag.DestroyWithoutComponents) != 0) {
+                if (this.currentState.structComponents.entitiesIndexer.GetCount(in this.currentState.allocator, entity.id) == 0 &&
+                    (this.currentState.storage.flags.Get(in this.currentState.allocator, entity.id) & (byte)EntityFlag.DestroyWithoutComponents) != 0) {
                     entity.RemoveOneShot<IsEntityEmptyOneShot>();
                 }
                 
                 incrementVersion = true;
                 SharedGroupsAPI<TComponent>.Set(ref reg.sharedStorage, entity.id, groupId);
-                this.currentState.structComponents.entitiesIndexer.Set(entity.id, AllComponentTypes<TComponent>.typeId);
+                this.currentState.structComponents.entitiesIndexer.Set(ref this.currentState.allocator, entity.id, AllComponentTypes<TComponent>.typeId);
                 if (ComponentTypes<TComponent>.typeId >= 0) {
 
-                    this.currentState.storage.archetypes.Set<TComponent>(in entity);
-                    this.AddFilterByStructComponent<TComponent>(in entity);
-                    this.UpdateFilterByStructComponent<TComponent>(in entity);
+                    this.AddFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
+                    this.UpdateFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
 
                 }
 
@@ -1763,7 +1504,7 @@ namespace ME.ECS {
 
             if (ComponentTypes<TComponent>.isFilterLambda == true && ComponentTypes<TComponent>.typeId >= 0) {
 
-                this.ValidateFilterByStructComponent<TComponent>(in entity, true);
+                this.ValidateFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity, true);
                 
             }
             
@@ -1773,7 +1514,7 @@ namespace ME.ECS {
                 ref var states = ref SharedGroupsAPI<TComponent>.GetGroup(ref reg.sharedStorage, groupId).states;
                 for (int i = 0; i < states.Length; ++i) {
                     if (states.arr[i] == true) {
-                        this.currentState.storage.versions.Increment(i);
+                        this.currentState.storage.versions.Increment(in this.currentState.allocator, i);
                     }
                 }
 
@@ -1791,9 +1532,10 @@ namespace ME.ECS {
 
                 }
                 
+                #if !COMPONENTS_VERSION_NO_STATE_DISABLED
                 if (AllComponentTypes<TComponent>.isVersionedNoState == true) ++reg.versionsNoState.arr[entity.id];
-                if (ComponentTypes<TComponent>.isFilterVersioned == true) this.UpdateFilterByStructComponentVersioned<TComponent>(in entity);
-
+                #endif
+                
             }
 
             return ref SharedGroupsAPI<TComponent>.Get(ref reg.sharedStorage, entity.id, groupId);
@@ -1812,7 +1554,8 @@ namespace ME.ECS {
             if (groupId == 0 && entity.Has<ME.ECS.DataConfigs.DataConfig.SharedData>() == true) {
 
                 ref readonly var sharedData = ref entity.Read<ME.ECS.DataConfigs.DataConfig.SharedData>();
-                if (sharedData.archetypeToId.TryGetValue(AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
+                ref var allocator = ref Worlds.current.currentState.allocator;
+                if (sharedData.archetypeToId.TryGetValue(in allocator, AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
 
                     this.RemoveSharedData<TComponent>(in entity, innerGroupId);
                     return;
@@ -1829,18 +1572,17 @@ namespace ME.ECS {
                 ref var states = ref SharedGroupsAPI<TComponent>.GetGroup(ref reg.sharedStorage, groupId).states;
                 for (int i = 0; i < states.Length; ++i) {
                     if (states.arr[i] == true) {
-                        this.currentState.storage.versions.Increment(i);
+                        this.currentState.storage.versions.Increment(in this.currentState.allocator, i);
                     }
                 }
 
                 state = false;
-                this.currentState.structComponents.entitiesIndexer.Remove(entity.id, AllComponentTypes<TComponent>.typeId);
-                if (ComponentTypes<TComponent>.isFilterVersioned == true) this.UpdateFilterByStructComponentVersioned<TComponent>(in entity);
+                this.currentState.structComponents.entitiesIndexer.Remove(ref this.currentState.allocator, entity.id, AllComponentTypes<TComponent>.typeId);
+                
                 if (ComponentTypes<TComponent>.typeId >= 0) {
 
-                    this.currentState.storage.archetypes.Remove<TComponent>(in entity);
-                    this.RemoveFilterByStructComponent<TComponent>(in entity);
-                    this.UpdateFilterByStructComponent<TComponent>(in entity);
+                    this.RemoveFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
+                    this.UpdateFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
 
                 }
 
@@ -1866,7 +1608,7 @@ namespace ME.ECS {
                 ref var states = ref SharedGroupsAPI<TComponent>.GetGroup(ref reg.sharedStorage, groupId).states;
                 for (int i = 0; i < states.Length; ++i) {
                     if (states.arr[i] == true) {
-                        this.currentState.storage.versions.Increment(i);
+                        this.currentState.storage.versions.Increment(in this.currentState.allocator, i);
                     }
                 }
 
@@ -1876,12 +1618,11 @@ namespace ME.ECS {
             if (state == false) {
 
                 state = true;
-                this.currentState.structComponents.entitiesIndexer.Set(entity.id, AllComponentTypes<TComponent>.typeId);
+                this.currentState.structComponents.entitiesIndexer.Set(ref this.currentState.allocator, entity.id, AllComponentTypes<TComponent>.typeId);
                 if (ComponentTypes<TComponent>.typeId >= 0) {
 
-                    this.currentState.storage.archetypes.Set<TComponent>(in entity);
-                    this.AddFilterByStructComponent<TComponent>(in entity);
-                    this.UpdateFilterByStructComponent<TComponent>(in entity);
+                    this.AddFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
+                    this.UpdateFilterByStructComponent<TComponent>(ref this.currentState.allocator,  entity);
 
                 }
 
@@ -1889,7 +1630,7 @@ namespace ME.ECS {
             
             if (ComponentTypes<TComponent>.isFilterLambda == true && ComponentTypes<TComponent>.typeId >= 0) {
 
-                this.ValidateFilterByStructComponent<TComponent>(in entity);
+                this.ValidateFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
                 
             }
             
@@ -1907,9 +1648,10 @@ namespace ME.ECS {
 
             }
 
+            #if !COMPONENTS_VERSION_NO_STATE_DISABLED
             if (AllComponentTypes<TComponent>.isVersionedNoState == true) ++reg.versionsNoState.arr[entity.id];
-            if (ComponentTypes<TComponent>.isFilterVersioned == true) this.UpdateFilterByStructComponentVersioned<TComponent>(in entity);
-
+            #endif
+            
         }
         
         #if INLINE_METHODS
@@ -1931,7 +1673,7 @@ namespace ME.ECS {
             ref var reg = ref this.currentState.structComponents.list.arr[dataIndex];
             if (reg.SetSharedObject(entity, data, groupId) == true) {
 
-                this.currentState.storage.versions.Increment(in entity);
+                this.currentState.storage.versions.Increment(in this.currentState.allocator, in entity);
                 reg.UpdateVersion(in entity);
                 reg.UpdateVersionNoState(in entity);
 
@@ -1951,7 +1693,7 @@ namespace ME.ECS {
             E.IS_LOGIC_STEP(this);
             E.IS_ALIVE(in entity);
             
-            this.currentState.timers.Set(in entity, index, time);
+            this.currentState.timers.Set(ref this.currentState.allocator, in entity, index, time);
 
         }
         
@@ -1963,7 +1705,7 @@ namespace ME.ECS {
             E.IS_LOGIC_STEP(this);
             E.IS_ALIVE(in entity);
 
-            return ref this.currentState.timers.Get(in entity, index);
+            return ref this.currentState.timers.Get(ref this.currentState.allocator, in entity, index);
 
         }
         
@@ -1974,7 +1716,7 @@ namespace ME.ECS {
             
             E.IS_ALIVE(in entity);
 
-            return this.currentState.timers.Read(in entity, index);
+            return this.currentState.timers.Read(in this.currentState.allocator, in entity, index);
 
         }
         
@@ -1986,7 +1728,7 @@ namespace ME.ECS {
             E.IS_LOGIC_STEP(this);
             E.IS_ALIVE(in entity);
 
-            return this.currentState.timers.Remove(in entity, index);
+            return this.currentState.timers.Remove(ref this.currentState.allocator, in entity, index);
 
         }
         #endif
@@ -2001,23 +1743,8 @@ namespace ME.ECS {
             E.IS_ALIVE(in entity);
             E.IS_TAG<TComponent>(in entity);
 
-            if (AllComponentTypes<TComponent>.isBlittable == true) {
-                
-                // Inline all manually
-                var reg = (StructComponentsBlittable<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
-                var c = reg.components[entity.id];
-                component = c.data;
-                return c.state > 0;
-
-            } else {
-
-                var reg = (StructComponents<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
-                var c = reg.components[entity.id];
-                component = c.data;
-                return c.state > 0;
-
-            }
-
+            return ((StructComponentsBase<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId]).TryRead(in entity, out component);
+            
         }
         
         #if INLINE_METHODS
@@ -2039,6 +1766,9 @@ namespace ME.ECS {
             E.IS_ALIVE(in entity);
             E.IS_TAG<TComponent>(in entity);
 
+            return ref ((StructComponentsBase<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId]).Get(in entity).data;
+
+            /*
             if (AllComponentTypes<TComponent>.isBlittable == true) {
                 
                 // Inline all manually
@@ -2051,7 +1781,7 @@ namespace ME.ECS {
                 var reg = (StructComponents<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
                 return ref reg.components[entity.id].data;
 
-            }
+            }*/
 
         }
 
@@ -2087,6 +1817,12 @@ namespace ME.ECS {
             E.IS_ALIVE(in entity);
             E.IS_TAG<TComponent>(in entity);
             
+            var reg = (StructComponentsBase<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
+            ref var bucket = ref reg.Get(in entity);
+            DataBufferUtilsBase.PushSetCreate_INTERNAL(ref bucket.state, this, reg, in entity, StorageType.Default, makeRequest: true);
+            return ref bucket.data;
+            
+            /*
             if (AllComponentTypes<TComponent>.isBlittable == true) {
                 
                 // Inline all manually
@@ -2099,7 +1835,7 @@ namespace ME.ECS {
                 var reg = (StructComponents<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
                 return ref DataBufferUtils.PushGet_INTERNAL(this, in entity, reg, StorageType.Default);
 
-            }
+            }*/
 
         }
 
@@ -2127,7 +1863,22 @@ namespace ME.ECS {
 
             E.IS_LOGIC_STEP(this);
             E.IS_ALIVE(in entity);
+            
+            var reg = (StructComponentsBase<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
+            if (AllComponentTypes<TComponent>.isTag == true) {
+                
+                ref var state = ref reg.GetState(in entity);
+                DataBufferUtilsBase.PushSetCreate_INTERNAL(ref state, this, reg, in entity, StorageType.Default, makeRequest: false);
+                
+            } else {
 
+                ref var bucket = ref reg.Get(in entity);
+                reg.Replace(ref bucket, in data);
+                DataBufferUtilsBase.PushSetCreate_INTERNAL(ref bucket.state, this, reg, in entity, StorageType.Default, makeRequest: false);
+
+            }
+
+            /*
             if (AllComponentTypes<TComponent>.isBlittable == true) {
                 
                 // Inline all manually
@@ -2136,11 +1887,21 @@ namespace ME.ECS {
 
             } else {
 
-                // Inline all manually
-                var reg = (StructComponents<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
-                DataBufferUtils.PushSet_INTERNAL(this, in entity, reg, in data, StorageType.Default);
+                if (AllComponentTypes<TComponent>.isTag == true) {
+                    
+                    // Inline all manually
+                    var reg = (StructComponentsTag<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
+                    DataTagBufferUtils.PushSet_INTERNAL(this, in entity, reg, in data, StorageType.Default);
+                    
+                } else {
 
-            }
+                    // Inline all manually
+                    var reg = (StructComponents<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
+                    DataBufferUtils.PushSet_INTERNAL(this, in entity, reg, in data, StorageType.Default);
+
+                }
+
+            }*/
 
         }
         
@@ -2168,14 +1929,14 @@ namespace ME.ECS {
         #endif
         public void SetData<TComponent>(in Entity entity, in TComponent data, ComponentLifetime lifetime, tfloat secondsLifetime) where TComponent : unmanaged, IStructComponent {
 
-            this.SetData(ref this.currentState.structComponents, in entity, in data, lifetime, secondsLifetime);
+            this.SetData(ref this.currentState.allocator, ref this.currentState.structComponents, in entity, in data, lifetime, secondsLifetime);
 
         }
         
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        internal void SetData<TComponent>(ref StructComponentsContainer container, in Entity entity, in TComponent data, ComponentLifetime lifetime, tfloat secondsLifetime, bool addTaskOnly = false) where TComponent : unmanaged, IStructComponent {
+        internal void SetData<TComponent>(ref MemoryAllocator allocator, ref StructComponentsContainer container, in Entity entity, in TComponent data, ComponentLifetime lifetime, tfloat secondsLifetime, bool addTaskOnly = false) where TComponent : unmanaged, IStructComponent {
             
             E.IS_LOGIC_STEP(this);
             E.IS_ALIVE(in entity);
@@ -2208,14 +1969,14 @@ namespace ME.ECS {
 
             }
 
-            if (container.nextTickTasks.Add(task) == false) {
+            if (container.nextTickTasks.Add(ref allocator, task) == false) {
 
-                task.Recycle();
+                task.Dispose(ref allocator);
 
             } else {
 
-                ref var val = ref container.nextTickTasks.GetValue(task);
-                val.data = new UnsafeData().Set(data);
+                ref var val = ref container.nextTickTasks.GetValue(in allocator, task);
+                val.data = new UnsafeData().Set(ref allocator, data);
 
             }
 
@@ -2229,17 +1990,37 @@ namespace ME.ECS {
             E.IS_LOGIC_STEP(this);
             E.IS_ALIVE(in entity);
 
+            ((StructComponentsBase<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId]).RemoveObject(in entity, StorageType.Default);
+
+            /*
             if (AllComponentTypes<TComponent>.isBlittable == true) {
              
-                var reg = (StructComponentsBlittable<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
-                DataBlittableBufferUtils.PushRemove_INTERNAL(this, in entity, reg, StorageType.Default);
-   
+                if (AllComponentTypes<TComponent>.isCopyable == true) {
+                    
+                    
+                    
+                } else {
+                    
+                    var reg = (StructComponentsUnmanaged<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
+                    DataUnmanagedBufferUtils.PushRemove_INTERNAL(this, in entity, reg, StorageType.Default);
+
+                }
+
             } else {
 
-                var reg = (StructComponents<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
-                DataBufferUtils.PushRemove_INTERNAL(this, in entity, reg, StorageType.Default);
+                if (AllComponentTypes<TComponent>.isTag == true) {
+                 
+                    var reg = (StructComponentsTag<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
+                    DataTagBufferUtils.PushRemove_INTERNAL(this, in entity, reg, StorageType.Default);
+   
+                } else {
 
-            }
+                    var reg = (StructComponents<TComponent>)this.currentState.structComponents.list.arr[AllComponentTypes<TComponent>.typeId];
+                    DataBufferUtils.PushRemove_INTERNAL(this, in entity, reg, StorageType.Default);
+
+                }
+
+            }*/
 
         }
 
@@ -2284,16 +2065,16 @@ namespace ME.ECS {
                 var reg = this.currentState.structComponents.list.arr[dataIndex];
                 if (reg.RemoveObject(entity, storageType) == true) {
 
-                    this.currentState.storage.versions.Increment(in entity);
+                    this.currentState.storage.versions.Increment(in this.currentState.allocator, in entity);
 
                 }
 
             } else if (storageType == StorageType.NoState) {
                 
-                var reg = this.structComponentsNoState.list.arr[dataIndex];
+                var reg = this.noStateData.storage.list.arr[dataIndex];
                 if (reg.RemoveObject(entity, storageType) == true) {
 
-                    this.currentState.storage.versions.Increment(in entity);
+                    this.currentState.storage.versions.Increment(in this.currentState.allocator, in entity);
 
                 }
 

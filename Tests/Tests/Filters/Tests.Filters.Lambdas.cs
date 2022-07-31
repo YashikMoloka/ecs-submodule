@@ -1,7 +1,6 @@
-
+#if !FILTERS_LAMBDA_DISABLED
 namespace ME.ECS.Tests {
 
-    #if !FILTERS_STORAGE_LEGACY
     public class Tests_Filters_Lambdas {
 
         public struct TestComponent : IComponent {
@@ -200,7 +199,7 @@ namespace ME.ECS.Tests {
                 WorldUtilities.InitComponentTypeId<TestComponent>(false, isBlittable: true);
                 ComponentsInitializerWorld.Setup((e) => {
                             
-                    e.ValidateDataBlittable<TestComponent>();
+                    e.ValidateDataUnmanaged<TestComponent>();
                             
                 });
                 
@@ -221,7 +220,7 @@ namespace ME.ECS.Tests {
                 WorldUtilities.InitComponentTypeId<TestComponent>(false, isBlittable: true);
                 ComponentsInitializerWorld.Setup((e) => {
                             
-                    e.ValidateDataBlittable<TestComponent>();
+                    e.ValidateDataUnmanaged<TestComponent>();
                             
                 });
                 
@@ -242,7 +241,7 @@ namespace ME.ECS.Tests {
                 WorldUtilities.InitComponentTypeId<TestComponent>(false, isBlittable: true);
                 ComponentsInitializerWorld.Setup((e) => {
                             
-                    e.ValidateDataBlittable<TestComponent>();
+                    e.ValidateDataUnmanaged<TestComponent>();
                             
                 });
                 
@@ -263,7 +262,7 @@ namespace ME.ECS.Tests {
                 WorldUtilities.InitComponentTypeId<TestComponent>(false, isBlittable: true);
                 ComponentsInitializerWorld.Setup((e) => {
                             
-                    e.ValidateDataBlittable<TestComponent>();
+                    e.ValidateDataUnmanaged<TestComponent>();
                             
                 });
                 
@@ -277,6 +276,6 @@ namespace ME.ECS.Tests {
         }
 
     }
-    #endif
 
 }
+#endif

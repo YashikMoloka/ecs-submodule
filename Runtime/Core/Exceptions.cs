@@ -2,6 +2,12 @@ namespace ME.ECS {
 
     public static class E {
 
+        public static void FILE_NOT_FOUND(string message) {
+            
+            throw new System.IO.FileNotFoundException(message);
+            
+        }
+
         [System.Diagnostics.Conditional("WORLD_STATE_CHECK")]
         public static void IS_NOT_LOGIC_STEP(World world) {
             
@@ -52,6 +58,17 @@ namespace ME.ECS {
             if (WorldUtilities.IsWorldThread() == false) {
 
                 WrongThreadException.Throw(methodName);
+                
+            }
+            
+        }
+
+        [System.Diagnostics.Conditional("WORLD_EXCEPTIONS")]
+        public static void RANGE(int index, int lowBound, int highBound) {
+            
+            if (index < lowBound || index >= highBound) {
+                
+                throw new OutOfBoundsException($"index {index} must be in range {lowBound}..{highBound}");
                 
             }
             

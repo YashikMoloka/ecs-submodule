@@ -16,9 +16,27 @@ namespace ME.ECS {
         [ME.ECS.Serializer.SerializeField]
         internal NativeBufferArraySliced<Component<TComponent>> components;
 
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override ref byte GetState(in Entity entity) {
+            ref var bucket = ref this.components[entity.id];
+            return ref bucket.state;
+        }
+
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override bool TryRead(in Entity entity, out TComponent component) {
+            ref var bucket = ref this.components[entity.id];
+            component = bucket.data;
+            return bucket.state > 0;
+        }
+
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override ref Component<TComponent> Get(in Entity entity) {
+            return ref this.components[entity.id];
+        }
+
         public override UnsafeData CreateObjectUnsafe(in Entity entity) {
             
-            return new UnsafeData().SetAsUnmanaged(this.components[entity.id].data);
+            return new UnsafeData().SetAsUnmanaged(ref this.allocator, this.components[entity.id].data);
 
         }
 
@@ -154,7 +172,7 @@ namespace ME.ECS {
             
             E.IS_ALIVE(in entity);
 
-            return DataBlittableBufferUtils.PushSet_INTERNAL(this.world, in entity, this, buffer.Read<TComponent>(), storageType);
+            return DataBlittableBufferUtils.PushSet_INTERNAL(this.world, in entity, this, buffer.Read<TComponent>(in this.allocator), storageType);
 
         }
 
@@ -167,6 +185,8 @@ namespace ME.ECS {
         }
 
         public override bool RemoveObject(in Entity entity, StorageType storageType) {
+
+            E.IS_ALIVE(in entity);
 
             return DataBlittableBufferUtils.PushRemove_INTERNAL(this.world, in entity, this, storageType);
 
@@ -212,11 +232,7 @@ namespace ME.ECS {
                 this.RemoveData(in entity, ref bucket);
                 bucket.state = 0;
 
-                if (clearAll == false) {
-
-                    this.world.currentState.storage.archetypes.Remove<TComponent>(in entity);
-
-                }
+                if (clearAll == false) { }
 
                 return true;
 
