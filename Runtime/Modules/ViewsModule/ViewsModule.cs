@@ -1159,7 +1159,7 @@ namespace ME.ECS.Views {
             instance.entityVersion = viewInfo.entity.GetVersion();
             instance.ApplyState(dt, immediately: true);
             // Simulate particle systems
-            instance.SimulateParticles(dt, seed);
+            // instance.SimulateParticles(dt, seed);
             
         }
 
@@ -1315,7 +1315,7 @@ namespace ME.ECS.Views {
                     }
 
                     currentViewInstance.OnUpdate(deltaTime);
-                    currentViewInstance.UpdateParticlesSimulation(deltaTime);
+                    // currentViewInstance.UpdateParticlesSimulation(deltaTime);
 
                 }
 
