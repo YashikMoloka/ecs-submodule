@@ -1,7 +1,10 @@
+//#define MEMORY_ALLOCATOR_BOUNDS_CHECK
+
 using System;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using INLINE = System.Runtime.CompilerServices.MethodImplAttribute;
+using BURST = Unity.Burst.BurstCompileAttribute;
 
 namespace ME.ECS.Collections.V3 {
 
@@ -57,12 +60,20 @@ namespace ME.ECS.Collections.V3 {
 
     }
 
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
     [System.Diagnostics.DebuggerTypeProxyAttribute(typeof(MemoryAllocatorProxy))]
+    //[BURST(CompileSynchronously = true)]
     public unsafe partial struct MemoryAllocator {
 
         private const int ZONE_ID = 0x1d4a11;
 
         private const int MIN_FRAGMENT = 64;
+        
+        private const byte BLOCK_STATE_FREE = 0;
+        private const byte BLOCK_STATE_USED = 1;
+        
 
         public struct MemZone {
 
@@ -75,14 +86,16 @@ namespace ME.ECS.Collections.V3 {
         public struct MemBlock {
 
             public int size;    // including the header and possibly tiny fragments
-            public void** user; // NULL if a free block
+            public byte state;
+            #if MEMORY_ALLOCATOR_BOUNDS_CHECK
             public int id;      // should be ZONEID
+            #endif
             public MemBlockOffset next;
             public MemBlockOffset prev;
 
         };
 
-        public struct MemBlockOffset {
+        public readonly struct MemBlockOffset {
 
             public readonly long value;
 
@@ -114,41 +127,38 @@ namespace ME.ECS.Collections.V3 {
             }
 
         }
-
-        [INLINE(256)]
+        
+        //[BURST(CompileSynchronously = true)]
         public static void ZmClearZone(MemZone* zone) {
             var block = (MemBlock*)((byte*)zone + sizeof(MemZone));
             var blockOffset = new MemBlockOffset(block, zone);
 
             // set the entire zone to one free block
             zone->blocklist.next = zone->blocklist.prev = blockOffset;
-
-            zone->blocklist.user = (void**)zone;
+            
+            zone->blocklist.state = MemoryAllocator.BLOCK_STATE_USED;
             zone->rover = blockOffset;
 
             block->prev = block->next = new MemBlockOffset(&zone->blocklist, zone);
+            
+            block->state = MemoryAllocator.BLOCK_STATE_FREE;
 
-            // NULL indicates a free block.
-            block->user = null;
-
-            block->size = zone->size - sizeof(MemZone);
+            block->size = zone->size - TSize<MemZone>.size;
         }
 
-        [INLINE(256)]
+        //[BURST(CompileSynchronously = true)]
         public static MemZone* ZmCreateZone(int size) {
-            size = MemoryAllocator.ZmGetMemBlockSize(size) + sizeof(MemZone);
-
+            
+            size = MemoryAllocator.ZmGetMemBlockSize(size) + TSize<MemZone>.size;
             var zone = (MemZone*)UnsafeUtility.Malloc(size, UnsafeUtility.AlignOf<byte>(), Allocator.Persistent);
-
             UnsafeUtility.MemSet(zone, 0, size);
             zone->size = size;
-
             MemoryAllocator.ZmClearZone(zone);
-
+            
             return zone;
         }
 
-        [INLINE(256)]
+        //[BURST(CompileSynchronously = true)]
         public static MemZone* ZmReallocZone(MemZone* zone, int newSize) {
             if (zone->size >= newSize) return zone;
 
@@ -167,14 +177,14 @@ namespace ME.ECS.Collections.V3 {
                 }
             }
 
-            if (top->user == null) {
+            if (top->state == MemoryAllocator.BLOCK_STATE_FREE) {
                 top->size += extra;
             } else {
                 var newblock = (MemBlock*)((byte*)top + top->size);
                 var newblockOffset = new MemBlockOffset(newblock, newZone);
                 newblock->size = extra;
 
-                newblock->user = null;
+                newblock->state = MemoryAllocator.BLOCK_STATE_FREE;
                 newblock->prev = new MemBlockOffset(top, newZone);
                 newblock->next = top->next;
                 newblock->next.Ptr(newZone)->prev = newblockOffset;
@@ -188,37 +198,33 @@ namespace ME.ECS.Collections.V3 {
             return newZone;
         }
 
-        [INLINE(256)]
+        //[BURST(CompileSynchronously = true)]
         public static void ZmFreeZone(MemZone* zone) {
             UnsafeUtility.Free(zone, Allocator.Persistent);
         }
 
-        [INLINE(256)]
+        //[BURST(CompileSynchronously = true)]
         public static bool ZmFree(MemZone* zone, void* ptr) {
-            var block = (MemBlock*)((byte*)ptr - sizeof(MemBlock));
+            var block = (MemBlock*)((byte*)ptr - TSize<MemBlock>.size);
             var blockOffset = new MemBlockOffset(block, zone);
 
+            #if MEMORY_ALLOCATOR_BOUNDS_CHECK
             if (block->id != MemoryAllocator.ZONE_ID) {
                 //return false;
                 throw new System.ArgumentException("ZmFree: freed a pointer without ZONEID");
             }
-
-            if (block->user > (void**)0x100) {
-                // smaller values are not pointers
-                // Note: OS-dependend?
-
-                // clear the user's mark
-                *block->user = null;
-            }
+            #endif
 
             // mark as free
-            block->user = null;
+            block->state = MemoryAllocator.BLOCK_STATE_FREE;
+            #if MEMORY_ALLOCATOR_BOUNDS_CHECK
             block->id = 0;
+            #endif
 
             var other = block->prev.Ptr(zone);
             var otherOffset = block->prev;
 
-            if (other->user == null) {
+            if (other->state == MemoryAllocator.BLOCK_STATE_FREE) {
                 // merge with previous free block
                 other->size += block->size;
                 other->next = block->next;
@@ -232,7 +238,7 @@ namespace ME.ECS.Collections.V3 {
 
             other = block->next.Ptr(zone);
             otherOffset = block->next;
-            if (other->user == null) {
+            if (other->state == MemoryAllocator.BLOCK_STATE_FREE) {
                 // merge the next free block onto the end
                 block->size += other->size;
                 block->next = other->next;
@@ -244,13 +250,13 @@ namespace ME.ECS.Collections.V3 {
             return true;
         }
 
-        [INLINE(256)]
+        //[BURST(CompileSynchronously = true)]
         private static int ZmGetMemBlockSize(int size) {
-            return ((size + 3) & ~3) + sizeof(MemBlock);
+            return ((size + 3) & ~3) + TSize<MemBlock>.size;
         }
 
-        [INLINE(256)]
-        public static void* ZmMalloc(MemZone* zone, int size, void* user) {
+        //[BURST(CompileSynchronously = true)]
+        public static void* ZmMalloc(MemZone* zone, int size) {
             size = MemoryAllocator.ZmGetMemBlockSize(size);
 
             // scan through the block list,
@@ -262,7 +268,7 @@ namespace ME.ECS.Collections.V3 {
             //  back up over them
             var @base = zone->rover.Ptr(zone);
 
-            if (@base->prev.Ptr(zone)->user != null) @base = @base->prev.Ptr(zone);
+            if (@base->prev.Ptr(zone)->state != MemoryAllocator.BLOCK_STATE_FREE) @base = @base->prev.Ptr(zone);
 
             var rover = @base;
             var start = @base->prev.Ptr(zone);
@@ -274,13 +280,13 @@ namespace ME.ECS.Collections.V3 {
                     //throw new System.OutOfMemoryException($"Malloc: failed on allocation of {size} bytes");
                 }
 
-                if (rover->user != null) {
+                if (rover->state != MemoryAllocator.BLOCK_STATE_FREE) {
                     // hit a block that can't be purged,
                     // so move base past it
                     @base = rover = rover->next.Ptr(zone);
                 } else
                     rover = rover->next.Ptr(zone);
-            } while (@base->user != null || @base->size < size);
+            } while (@base->state != MemoryAllocator.BLOCK_STATE_FREE || @base->size < size);
 
 
             // found a block big enough
@@ -293,7 +299,7 @@ namespace ME.ECS.Collections.V3 {
                 newblock->size = extra;
 
                 // NULL indicates free block.
-                newblock->user = null;
+                newblock->state = MemoryAllocator.BLOCK_STATE_FREE;
                 newblock->prev = new MemBlockOffset(@base, zone);
                 newblock->next = @base->next;
                 newblock->next.Ptr(zone)->prev = newblockOffset;
@@ -303,21 +309,16 @@ namespace ME.ECS.Collections.V3 {
 
             }
 
-            if (user != null) {
-                // mark as an in use block
-                @base->user = (void**)user;
-                *(void**)user = (void*)((byte*)@base + sizeof(MemBlock));
-            } else {
-                // mark as in use, but unowned	
-                @base->user = (void**)2;
-            }
+            @base->state = MemoryAllocator.BLOCK_STATE_USED;
 
+            #if MEMORY_ALLOCATOR_BOUNDS_CHECK
             @base->id = MemoryAllocator.ZONE_ID;
+            #endif
 
             // next allocation will start looking here
             zone->rover = @base->next;
 
-            return (void*)((byte*)@base + sizeof(MemBlock));
+            return (void*)((byte*)@base + TSize<MemBlock>.size);
         }
 
         [INLINE(256)]
@@ -326,7 +327,7 @@ namespace ME.ECS.Collections.V3 {
 
             for (var block = zone->blocklist.next.Ptr(zone);; block = block->next.Ptr(zone)) {
 
-                results.Add($"block offset: {(byte*)block - (byte*)@zone}; size: {block->size}; user: {new IntPtr(block->user)}");
+                results.Add($"block offset: {(byte*)block - (byte*)@zone}; size: {block->size}; state: {block->state}");
 
                 if (block->next.Ptr(zone) == &zone->blocklist) break;
 
@@ -356,28 +357,28 @@ namespace ME.ECS.Collections.V3 {
                 results.Add("CheckHeap: next block doesn't have proper back link\n");
             }
 
-            if (block->user == null && block->next.Ptr(zone)->user == null) {
+            if (block->state == MemoryAllocator.BLOCK_STATE_FREE && block->next.Ptr(zone)->state == MemoryAllocator.BLOCK_STATE_FREE) {
                 results.Add("CheckHeap: two consecutive free blocks\n");
             }
         }
 
-        [INLINE(256)]
-        public static int ZmFreeMemory(MemZone* zone) {
+        //[BURST(CompileSynchronously = true)]
+        public static int GetZmFreeMemory(MemZone* zone) {
             var free = 0;
 
             for (var block = zone->blocklist.next.Ptr(zone); block != &zone->blocklist; block = block->next.Ptr(zone)) {
-                if (block->user == null) free += block->size;
+                if (block->state == MemoryAllocator.BLOCK_STATE_FREE) free += block->size;
             }
 
             return free;
         }
 
-        [INLINE(256)]
+        //[BURST(CompileSynchronously = true)]
         public static bool ZmHasFreeBlock(MemZone* zone, int size) {
             size = MemoryAllocator.ZmGetMemBlockSize(size);
 
             for (var block = zone->blocklist.next.Ptr(zone); block != &zone->blocklist; block = block->next.Ptr(zone)) {
-                if (block->user == null && block->size > size) {
+                if (block->state == MemoryAllocator.BLOCK_STATE_FREE && block->size > size) {
                     return true;
                 }
 

@@ -9,7 +9,8 @@ namespace ME.ECS {
 
     using Unity.Burst;
     using Unity.Collections.LowLevel.Unsafe;
-    
+    using Collections.MemoryAllocator;
+
     public static class DataTagBufferUtils {
 
         //[System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -30,7 +31,6 @@ namespace ME.ECS {
                 if (ComponentTypes<T>.typeId >= 0) {
 
                     world.RemoveFilterByStructComponent<T>(ref world.currentState.allocator, in entity);
-                    world.UpdateFilterByStructComponent<T>(ref world.currentState.allocator, in entity);
 
                 }
 
@@ -76,7 +76,6 @@ namespace ME.ECS {
                 if (ComponentTypes<T>.typeId >= 0) {
 
                     world.AddFilterByStructComponent<T>(ref world.currentState.allocator, in entity);
-                    world.UpdateFilterByStructComponent<T>(ref world.currentState.allocator, in entity);
 
                 }
 

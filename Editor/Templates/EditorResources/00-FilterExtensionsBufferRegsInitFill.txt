@@ -1,3 +1,0 @@
-containsT#INDEX# = this.tempT#INDEX#[idx].state,
-t#INDEX# = this.tagT#INDEX# == 0 ? this.tempT#INDEX#[idx].data : default,
-versionT#INDEX# = this.tempT#INDEX#[idx].version,

@@ -17,14 +17,10 @@ namespace ME.ECS {
         public ME.ECS.FiltersArchetype.FiltersArchetypeStorage storage;
         
         public MemoryAllocator allocator;
-        #if !ENTITY_TIMERS_DISABLED
-        [ME.ECS.Serializer.SerializeField]
-        public Timers timers;
-        #endif
         [ME.ECS.Serializer.SerializeField]
         public StructComponentsContainer structComponents;
-        [ME.ECS.Serializer.SerializeField]
-        public GlobalEventStorage globalEvents;
+
+        public PluginsStorage pluginsStorage;
         
         /// <summary>
         /// Return most unique hash
@@ -39,14 +35,12 @@ namespace ME.ECS {
         public virtual void Initialize(World world, bool freeze, bool restore) {
             
             // Use 512 KB by default
-            this.allocator.Initialize(512 * 1024, -1);
+            if (this.allocator.isValid == false) this.allocator.Initialize(512 * 1024, -1);
 
             world.Register(ref this.allocator, ref this.storage, freeze, restore);
             world.Register(ref this.allocator, ref this.structComponents, freeze, restore);
-            this.globalEvents.Initialize(ref this.allocator);
-            #if !ENTITY_TIMERS_DISABLED
-            this.timers.Initialize(ref this.allocator);
-            #endif
+            
+            this.pluginsStorage.Initialize(ref this.allocator);
             
         }
 
@@ -58,27 +52,23 @@ namespace ME.ECS {
             this.randomState = other.randomState;
             this.sharedEntity = other.sharedEntity;
 
+            this.pluginsStorage = other.pluginsStorage;
+
             this.storage = other.storage;
             this.structComponents.CopyFrom(other.structComponents);
-            this.globalEvents = other.globalEvents;
-            #if !ENTITY_TIMERS_DISABLED
-            this.timers = other.timers;
-            #endif
 
         }
 
         public virtual void OnRecycle() {
-
+            
             this.tick = default;
             this.randomState = default;
             this.sharedEntity = default;
+
+            this.pluginsStorage = default;
+            this.storage = default;
             
-            #if !ENTITY_TIMERS_DISABLED
-            this.timers.Dispose(ref this.allocator);
-            #endif
-            this.globalEvents.Dispose(ref this.allocator);
-            this.storage.Dispose(ref this.allocator);
-            this.structComponents.OnRecycle(ref this.allocator);
+            this.structComponents.OnRecycle(ref this.allocator, true);
             
             this.allocator.Dispose();
 

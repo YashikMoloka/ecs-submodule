@@ -6,6 +6,8 @@ namespace ME.ECSEditor {
 
     public class Generator : AssetPostprocessor {
 
+        public static System.Action<string> onGenerate;
+        
         private static string MENU_ITEM_AUTO;
         private static string CONTENT_ITEM;
         private static string CONTENT_ITEM2;
@@ -380,6 +382,7 @@ namespace ME.ECSEditor {
                 
                     var hasFields = type.GetFields(System.Reflection.BindingFlags.Default | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public).Length > 0;
                     var isCopyable = typeof(ME.ECS.ICopyableBase).IsAssignableFrom(type);
+                    var isDisposable = typeof(ME.ECS.IComponentDisposableBase).IsAssignableFrom(type);
                     var isStatic = typeof(ME.ECS.IComponentStatic).IsAssignableFrom(type);
                     var isOneShot = typeof(ME.ECS.IComponentOneShot).IsAssignableFrom(type);
                     var isBlittable = isOneShot == false && Generator.IsUnmanaged(type) == true;
@@ -398,14 +401,14 @@ namespace ME.ECSEditor {
 
                     }
 
-                    if (isStatic == true) return 0;
+					if (isStatic == true) return 0;
                     if (isBlittable == true) return 1;
                     if (isTag == true) return 2;
                     if (isCopyable == true) return 5;
-                    
+                    if (isDisposable == true) return 6;
                     if (isOneShot == true) return 10;
 
-                    return int.MaxValue;
+                    return 100;
 
                 }
                 
@@ -422,6 +425,7 @@ namespace ME.ECSEditor {
                     var entityType = type.FullName.Replace("+", ".");
                     var hasFields = type.GetFields(System.Reflection.BindingFlags.Default | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic).Length > 0;
                     var isCopyable = typeof(ME.ECS.ICopyableBase).IsAssignableFrom(type);
+                    var isDisposable = typeof(ME.ECS.IComponentDisposableBase).IsAssignableFrom(type);
                     var isStatic = typeof(ME.ECS.IComponentStatic).IsAssignableFrom(type);
                     var isOneShot = typeof(ME.ECS.IComponentOneShot).IsAssignableFrom(type);
                     var isBlittableForced = typeof(ME.ECS.IComponentBlittable).IsAssignableFrom(type);
@@ -470,6 +474,10 @@ namespace ME.ECSEditor {
                         isBlittable = false;
                         isTag = false;
 
+                    } else {
+
+                        isDisposable = false;
+
                     }
 
                     if (isCopyable == false && hasFields == true && isStatic == false && isOneShot == false) {
@@ -490,11 +498,13 @@ namespace ME.ECSEditor {
                         resItem = resItem.Replace("#ISTAG#", hasFields == true ? "false" : "true");
                         resItem = resItem.Replace("#ISSHARED#", isShared == true ? "true" : "false");
                         resItem = resItem.Replace("#ISSIMPLE#", isSimple == true ? "true" : "false");
+                        resItem = resItem.Replace("#ISDISPOSABLE#", isDisposable == true ? "true" : "false");
                         resItem = resItem.Replace("#ISBLITTABLE#", isUnmanaged == true || isBlittable == true ? "true" : "false");
                         resItem = resItem.Replace("#TAG#", isTag == true ? "Tag" : "");
                         resItem = resItem.Replace("#COPYABLE#", isCopyable == true ? "Copyable" : "");
                         resItem = resItem.Replace("#UNMANAGED#", isUnmanaged == true ? "Unmanaged" : "");
                         resItem = resItem.Replace("#BLITTABLE#", isBlittable == true ? "Blittable" : "");
+                        resItem = resItem.Replace("#DISPOSABLE#", isDisposable == true ? "Disposable" : "");
                         resItem = resItem.Replace("#ONESHOT#", isOneShot == true ? "OneShot" : "");
                         resItem = resItem.Replace("#CONTAINER#", isOneShot == true ? "noState.storage" : "state.structComponents");
                         resItem = resItem.Replace("#ALLOCATOR_FIRST_TYPE#", isUnmanaged == true ? "ref state.allocator, " : "");
@@ -518,11 +528,13 @@ namespace ME.ECSEditor {
                             resItem2 = resItem2.Replace("#ISTAG#", hasFields == true ? "false" : "true");
                             resItem2 = resItem2.Replace("#ISSHARED#", isShared == true ? "true" : "false");
                             resItem2 = resItem2.Replace("#ISSIMPLE#", isSimple == true ? "true" : "false");
+                            resItem2 = resItem2.Replace("#ISDISPOSABLE#", isDisposable == true ? "true" : "false");
                             resItem2 = resItem2.Replace("#ISBLITTABLE#", isUnmanaged == true || isBlittable == true ? "true" : "false");
                             resItem2 = resItem2.Replace("#TAG#", isTag == true ? "Tag" : "");
                             resItem2 = resItem2.Replace("#COPYABLE#", isCopyable == true ? "Copyable" : "");
                             resItem2 = resItem2.Replace("#UNMANAGED#", isUnmanaged == true ? "Unmanaged" : "");
                             resItem2 = resItem2.Replace("#BLITTABLE#", isBlittable == true ? "Blittable" : "");
+                            resItem2 = resItem2.Replace("#DISPOSABLE#", isDisposable == true ? "Disposable" : "");
                             resItem2 = resItem2.Replace("#ONESHOT#", isOneShot == true ? "OneShot" : "");
                             resItem2 = resItem2.Replace("#CONTAINER#", isOneShot == true ? "noState.storage" : "state.structComponents");
                             resItem2 = resItem2.Replace("\r\n", "\n");
@@ -549,6 +561,7 @@ namespace ME.ECSEditor {
                         resItem3 = resItem3.Replace("#ISTAG#", hasFields == true ? "false" : "true");
                         resItem3 = resItem3.Replace("#ISSHARED#", isShared == true ? "true" : "false");
                         resItem3 = resItem3.Replace("#ISSIMPLE#", isSimple == true ? "true" : "false");
+                        resItem3 = resItem3.Replace("#ISDISPOSABLE#", isDisposable == true ? "true" : "false");
                         resItem3 = resItem3.Replace("#ISBLITTABLE#", isUnmanaged == true || isBlittable == true ? "true" : "false");
                         resItem3 = resItem3.Replace("#ISCOPYABLE#", isCopyable == true ? "true" : "false");
                         resItem3 = resItem3.Replace("#ISONESHOT#", isOneShot == true ? "true" : "false");
@@ -577,7 +590,7 @@ namespace ME.ECSEditor {
                                                         new Dictionary<string, string>() { { "CONTENT", output }, { "CONTENT2", output2 }, { "CONTENT3", output3 } }, false) == true) {
 
                     UnityEngine.Debug.Log($"{Generator.FILE_NAME} successfully refreshed at path {asmNamePath}");
-                    DataConfigGenerator.Generate(asmNamePath);
+                    onGenerate?.Invoke(asmNamePath);
                     ViewGenerator.Generate(asmNamePath);
 
                 }
@@ -592,7 +605,7 @@ namespace ME.ECSEditor {
             
             bool answer;
 
-            if (!type.IsValueType) {
+            if (type.IsPointer == false && !type.IsValueType) {
                 // not a struct -> false
                 answer = false;
             } else if (type.IsPrimitive || type.IsPointer || type.IsEnum) {

@@ -16,8 +16,9 @@ namespace ME.ECSEditor {
     [UnityEditor.CustomEditor(typeof(InitializerBase), true)]
     public class InitializerEditor : Editor {
 
-        private const float ONE_LINE_HEIGHT = 22f;
-        
+        public static System.Func<InitializerBase.Configuration, InitializerBase.Configuration> buildConfiguration;
+        public static System.Func<InitializerBase.DefineInfo[]> getAdditionalDefines;
+
         private static System.Collections.Generic.Dictionary<object, bool> systemFoldouts = new System.Collections.Generic.Dictionary<object, bool>();
         private static System.Collections.Generic.Dictionary<object, bool> moduleFoldouts = new System.Collections.Generic.Dictionary<object, bool>();
         private static System.Collections.Generic.Dictionary<object, bool> featureFoldouts = new System.Collections.Generic.Dictionary<object, bool>();
@@ -46,6 +47,19 @@ namespace ME.ECSEditor {
             }
         }
 
+        public static InitializerBase.DefineInfo[] GetDefines() {
+            if (InitializerEditor.getAdditionalDefines != null) {
+                var list = new System.Collections.Generic.List<InitializerBase.DefineInfo>();
+                list.AddRange(InitializerEditor.defines);
+                foreach (var item in InitializerEditor.getAdditionalDefines.GetInvocationList()) {
+                    list.AddRange((InitializerBase.DefineInfo[])item.DynamicInvoke());
+                }
+                return list.ToArray();
+            }
+
+            return InitializerEditor.defines;
+        }
+        
         private static readonly InitializerBase.DefineInfo[] defines = new[] {
             new InitializerBase.DefineInfo(true, "GAMEOBJECT_VIEWS_MODULE_SUPPORT", "Turn on/off GameObject View Provider.", () => {
                 #if GAMEOBJECT_VIEWS_MODULE_SUPPORT
@@ -159,13 +173,6 @@ namespace ME.ECSEditor {
                 return false;
                 #endif
             }, true, InitializerBase.ConfigurationType.DebugOnly, InitializerBase.CodeSize.Light, InitializerBase.RuntimeSpeed.Heavy),
-            new InitializerBase.DefineInfo(true, "FIXED_POINT_MATH", "Fixed-Point Math.", () => {
-                #if FIXED_POINT_MATH
-                return true;
-                #else
-                return false;
-                #endif
-            }, true, InitializerBase.ConfigurationType.DebugAndRelease, InitializerBase.CodeSize.Normal, InitializerBase.RuntimeSpeed.Normal),
             new InitializerBase.DefineInfo(false, "SHARED_COMPONENTS_DISABLED", "Disable shared components storage and entity shared API. Use this if you don't use this feature at all to speed up your runtime.", () => {
                 #if SHARED_COMPONENTS_DISABLED
                 return true;
@@ -173,13 +180,6 @@ namespace ME.ECSEditor {
                 return false;
                 #endif
             }, true, InitializerBase.ConfigurationType.DebugAndRelease, InitializerBase.CodeSize.Heavy, InitializerBase.RuntimeSpeed.Normal),
-            new InitializerBase.DefineInfo(false, "ENTITY_TIMERS_DISABLED", "Disable timers storage and entity timers API. Use this if you don't use this feature at all to speed up your runtime.", () => {
-                #if ENTITY_TIMERS_DISABLED
-                return true;
-                #else
-                return false;
-                #endif
-            }, true, InitializerBase.ConfigurationType.DebugAndRelease, InitializerBase.CodeSize.Light, InitializerBase.RuntimeSpeed.Light),
             new InitializerBase.DefineInfo(false, "COMPONENTS_VERSION_NO_STATE_DISABLED", "Disable components version no state storage and entity no state API. Use this if you don't use this feature at all to speed up your runtime.", () => {
                 #if COMPONENTS_VERSION_NO_STATE_DISABLED
                 return true;
@@ -301,15 +301,26 @@ namespace ME.ECSEditor {
             var target = this.target as InitializerBase;
 
             var changed = false;
+            var defines = InitializerEditor.GetDefines();
             for (int i = 0; i < target.configurations.Count; ++i) {
 
                 var conf = target.configurations[i];
-                foreach (var define in InitializerEditor.defines) {
+                foreach (var define in defines) {
 
-                    if (conf.Add(define) == true) {
-
+                    if (conf.Contains(define) == false) {
+                        
+                        //conf.Remove(define);
+                        conf.Add(define);
                         changed = true;
+                        
+                    } else {
+                        
+                        if (conf.Add(define) == true) {
 
+                            changed = true;
+
+                        }
+                        
                     }
 
                 }
@@ -329,7 +340,7 @@ namespace ME.ECSEditor {
 
         private InitializerBase.DefineInfo GetDefineInfo(string define) {
 
-            foreach (var defineInfo in InitializerEditor.defines) {
+            foreach (var defineInfo in InitializerEditor.GetDefines()) {
 
                 if (defineInfo.define == define) {
                     
@@ -570,11 +581,47 @@ namespace ME.ECSEditor {
                             "Create instance copy for Features",
                             "When you add feature into the world, do you need to create copy of feature data at runtime? Turn off this checkbox if you do not want to change features data.");
 
-                        GUILayoutExt.IntFieldLeft(
-                            ref target.worldSettings.maxTicksSimulationCount,
+                        GUILayoutExt.EnumField(
+                            ref target.worldSettings.frameFixType,
                             ref isDirty,
-                            "Max ticks per simulation frame",
-                            "If simulation ticks count will be over this value, exception will be throw. Zero value = ignore this parameter.");
+                            "Simulation limitation type",
+                            "You can choose right behaviour depends on your game.");
+
+                        GUILayout.BeginHorizontal();
+                        {
+                            GUILayout.Space(10);
+                            GUILayout.BeginVertical();
+                            if (target.worldSettings.frameFixType == FrameFixBehaviour.ExceptionOverTicksPreFrame) {
+
+                                GUILayoutExt.IntFieldLeft(
+                                    ref target.worldSettings.frameFixValue,
+                                    ref isDirty,
+                                    "Max ticks per simulation frame",
+                                    "If simulation ticks count will be over this value, exception will be thrown.",
+                                    1);
+
+                            } else if (target.worldSettings.frameFixType == FrameFixBehaviour.AsyncOverMillisecondsPerFrame) {
+
+                                GUILayoutExt.IntFieldLeft(
+                                    ref target.worldSettings.frameFixValue,
+                                    ref isDirty,
+                                    "Max ms per simulation frame",
+                                    "If simulation frame time in milliseconds will be over this value, value will be clamped and simulation continues at the next simulation frame.",
+                                    1);
+
+                            } else if (target.worldSettings.frameFixType == FrameFixBehaviour.AsyncOverTicksPerFrame) {
+
+                                GUILayoutExt.IntFieldLeft(
+                                    ref target.worldSettings.frameFixValue,
+                                    ref isDirty,
+                                    "Max ticks per simulation frame",
+                                    "If simulation frame time in milliseconds will be over this value, value will be clamped and simulation continues at the next simulation frame.",
+                                    1);
+
+                            }
+                            GUILayout.EndVertical();
+                        }
+                        GUILayout.EndHorizontal();
 
                         GUILayoutExt.ToggleLeft(
                             ref target.worldSettings.useJobsForViews,
@@ -636,10 +683,10 @@ namespace ME.ECSEditor {
                                 GUILayout.Space(10f);
                                 {
                                     GUILayout.BeginVertical();
-                                    var statObj = (ME.ECS.Debug.StatisticsObject)EditorGUILayout.ObjectField("Statistic Object",
-                                                                                                            target.worldDebugSettings.statisticsObject,
-                                                                                                            typeof(ME.ECS.Debug.StatisticsObject),
-                                                                                                            allowSceneObjects: false);
+                                    var statObj = (ME.ECS.DebugUtils.StatisticsObject)EditorGUILayout.ObjectField("Statistic Object",
+                                                                                                                  target.worldDebugSettings.statisticsObject,
+                                                                                                                  typeof(ME.ECS.DebugUtils.StatisticsObject),
+                                                                                                                  allowSceneObjects: false);
                                     if (target.worldDebugSettings.statisticsObject != statObj) {
                                         
                                         target.worldDebugSettings.statisticsObject = statObj;
@@ -651,14 +698,14 @@ namespace ME.ECSEditor {
                                         EditorGUILayout.HelpBox("Object is None, create custom statistic object or create default one.", MessageType.Warning);
                                         if (GUILayout.Button("Create Default") == true) {
 
-                                            statObj = ME.ECS.Debug.StatisticsObject.CreateInstance<ME.ECS.Debug.StatisticsObject>();
+                                            statObj = ME.ECS.DebugUtils.StatisticsObject.CreateInstance<ME.ECS.DebugUtils.StatisticsObject>();
                                             var path = AssetDatabase.GetAssetPath(this.target);
                                             var dir = System.IO.Path.GetDirectoryName(path);
                                             path = dir + "/" + this.target.name + "_StatisticObject.asset";
                                             AssetDatabase.CreateAsset(statObj, path);
                                             AssetDatabase.ImportAsset(path);
 
-                                            var so = AssetDatabase.LoadAssetAtPath<ME.ECS.Debug.StatisticsObject>(path);
+                                            var so = AssetDatabase.LoadAssetAtPath<ME.ECS.DebugUtils.StatisticsObject>(path);
                                             target.worldDebugSettings.statisticsObject = so;
                                             isDirty = true;
 
@@ -743,7 +790,9 @@ namespace ME.ECSEditor {
                 if (isDirty == true) {
                     
                     EditorUtility.SetDirty(this.target);
-                    AssetDatabase.ForceReserializeAssets(new string[] { AssetDatabase.GetAssetPath(this.target) });
+                    EditorApplication.delayCall += () => {
+                        AssetDatabase.ForceReserializeAssets(new string[] { AssetDatabase.GetAssetPath(this.target) });
+                    };
 
                 }
 
@@ -753,6 +802,7 @@ namespace ME.ECSEditor {
             
             EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying == true || EditorApplication.isPaused == true);
             //InitializerEditor.listCategories.DoLayoutList();
+            this.listCategoriesProp = this.serializedObject.FindProperty("featuresListCategories");
             EditorGUILayout.PropertyField(this.listCategoriesProp);
             EditorGUI.EndDisabledGroup();
 
@@ -763,7 +813,7 @@ namespace ME.ECSEditor {
         private System.Collections.Generic.List<string> CollectAllActiveDefines(bool isRelease) {
 
             var list = new System.Collections.Generic.List<string>();
-            foreach (var define in InitializerEditor.defines) {
+            foreach (var define in InitializerEditor.GetDefines()) {
 
                 if (isRelease == true) {
                     
@@ -782,6 +832,8 @@ namespace ME.ECSEditor {
         
         private void BuildConfiguration(InitializerBase.Configuration configuration) {
 
+            if (InitializerEditor.buildConfiguration != null) configuration = InitializerEditor.buildConfiguration.Invoke(configuration);
+            
             var path = "Assets";
             string file = $"csc-{configuration.name.ToLower()}.gen.rsp";
             

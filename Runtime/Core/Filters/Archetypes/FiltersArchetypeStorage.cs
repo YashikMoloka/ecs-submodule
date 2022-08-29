@@ -6,12 +6,64 @@ using System.Runtime.CompilerServices;
 using ME.ECS.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.IL2CPP.CompilerServices;
+using System.Runtime.InteropServices;
 using Il2Cpp = Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute;
+using BURST = Unity.Burst.BurstCompileAttribute;
 
 namespace ME.ECS.FiltersArchetype {
     
     using Collections.V3;
     using Collections.MemoryAllocator;
+
+    [BURST(CompileSynchronously = true)]
+    public static class FiltersArchetypeStorageBurst {
+        
+        [BURST(CompileSynchronously = true)]
+        public static void UpdateFilters(ref MemoryAllocator allocator,
+                                          in MemoryAllocator tempAllocator,
+                                          ref MemArrayAllocator<FilterStaticData> filterStaticDataBuffer,
+                                          ref List<FilterData> filters,
+                                          ref List<FiltersArchetypeStorage.Archetype> allArchetypes,
+                                          ref EquatableHashSet<int> dirtyArchetypes) {
+
+            for (int idx = 0, cnt = filters.Count; idx < cnt; ++idx) {
+
+                ref var item = ref filters[in allocator, idx];
+                var e = dirtyArchetypes.GetEnumerator(in allocator);
+                while (e.MoveNext() == true) {
+
+                    var archId = e.Current;
+                    if (item.archetypes.Contains(in allocator, archId) == true) continue;
+
+                    ref var arch = ref allArchetypes[in allocator, archId];
+                    var filterStaticData = filterStaticDataBuffer[in tempAllocator, item.id];
+
+                    if (arch.HasAll(in allocator, in tempAllocator, filterStaticData.data.contains) == true &&
+                        arch.HasNotAll(in allocator, in tempAllocator, filterStaticData.data.notContains) == true &&
+                        arch.HasAnyPair(in allocator, in tempAllocator, filterStaticData.data.anyPair2) == true &&
+                        arch.HasAnyPair(in allocator, in tempAllocator, filterStaticData.data.anyPair3) == true &&
+                        arch.HasAnyPair(in allocator, in tempAllocator, filterStaticData.data.anyPair4) == true
+                        #if !FILTERS_LAMBDA_DISABLED
+                        && FiltersArchetypeStorage.CheckLambdas(in allocator, in tempAllocator, in arch, filterStaticData.data.lambdas) == true
+                        #endif
+                    ) {
+
+                        item.archetypes.Add(ref allocator, archId);
+                        item.archetypesList.Add(ref allocator, archId);
+
+                    }
+
+                }
+
+                e.Dispose();
+
+            }
+
+            dirtyArchetypes.Clear(in allocator);
+
+        }
+
+    }
     
     [Il2Cpp(Option.NullChecks, false)]
     [Il2Cpp(Option.ArrayBoundsChecks, false)]
@@ -23,27 +75,21 @@ namespace ME.ECS.FiltersArchetype {
         [Il2Cpp(Option.DivideByZeroChecks, false)]
         public struct Archetype {
 
-            public struct Info {
-
-                public int index; // Index in list
-
-            }
-
             public int index;
-            public Dictionary<int, Info> components; // Contains componentId => Info index
+            public EquatableDictionary<int, int> components; // Contains componentId => Index in list
             public List<int> componentIds; // Contains raw list of component ids
             public List<int> entitiesArr; // Contains raw unsorted list of entities
-            public HashSet<int> entitiesContains;
-            public Dictionary<int, int> edgesToAdd; // Contains edges to move from this archetype to another
-            public Dictionary<int, int> edgesToRemove; // Contains edges to move from this archetype to another
+            public EquatableHashSet<int> entitiesContains;
+            public EquatableDictionary<int, int> edgesToAdd; // Contains edges to move from this archetype to another
+            public EquatableDictionary<int, int> edgesToRemove; // Contains edges to move from this archetype to another
             
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            internal readonly bool HasAnyPair(in MemoryAllocator allocator, ListCopyable<FilterInternalData.Pair2> list) {
+            internal readonly bool HasAnyPair(in MemoryAllocator allocator, in MemoryAllocator tempAllocator, List<FilterInternalData.Pair2> list) {
 
                 for (int i = 0, cnt = list.Count; i < cnt; ++i) {
-                    var pair = list[i];
+                    var pair = list[tempAllocator, i];
                     if (this.Has(in allocator, pair.t1) == false &&
                         this.Has(in allocator, pair.t2) == false) {
                         return false;
@@ -57,10 +103,10 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            internal readonly bool HasAnyPair(in MemoryAllocator allocator, ListCopyable<FilterInternalData.Pair3> list) {
+            internal readonly bool HasAnyPair(in MemoryAllocator allocator, in MemoryAllocator tempAllocator, List<FilterInternalData.Pair3> list) {
 
                 for (int i = 0, cnt = list.Count; i < cnt; ++i) {
-                    var pair = list[i];
+                    var pair = list[tempAllocator, i];
                     if (this.Has(in allocator, pair.t1) == false &&
                         this.Has(in allocator, pair.t2) == false &&
                         this.Has(in allocator, pair.t3) == false) {
@@ -75,10 +121,10 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            internal readonly bool HasAnyPair(in MemoryAllocator allocator, ListCopyable<FilterInternalData.Pair4> list) {
+            internal readonly bool HasAnyPair(in MemoryAllocator allocator, in MemoryAllocator tempAllocator, List<FilterInternalData.Pair4> list) {
 
                 for (int i = 0, cnt = list.Count; i < cnt; ++i) {
-                    var pair = list[i];
+                    var pair = list[tempAllocator, i];
                     if (this.Has(in allocator, pair.t1) == false &&
                         this.Has(in allocator, pair.t2) == false &&
                         this.Has(in allocator, pair.t3) == false &&
@@ -101,6 +147,38 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
+            public readonly bool HasAll(in MemoryAllocator allocator, in MemoryAllocator tempAllocator, List<int> componentIds) {
+
+                for (int i = 0, cnt = componentIds.Count; i < cnt; ++i) {
+                    var item = componentIds[in tempAllocator, i];
+                    if (this.components.ContainsKey(in allocator, item) == false) {
+                        return false;
+                    }
+                }
+
+                return true;
+
+            }
+
+            #if INLINE_METHODS
+            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
+            #endif
+            public readonly bool HasAll(in MemoryAllocator allocator, List<int> componentIds) {
+
+                for (int i = 0, cnt = componentIds.Count; i < cnt; ++i) {
+                    var item = componentIds[in allocator, i];
+                    if (this.components.ContainsKey(in allocator, item) == false) {
+                        return false;
+                    }
+                }
+
+                return true;
+
+            }
+
+            #if INLINE_METHODS
+            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
+            #endif
             public readonly bool HasAll(in MemoryAllocator allocator, ListCopyable<int> componentIds) {
 
                 for (int i = 0, cnt = componentIds.Count; i < cnt; ++i) {
@@ -117,27 +195,11 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            public readonly bool HasAll(in MemoryAllocator allocator, List<int> componentIds) {
-
-                for (int i = 0, cnt = componentIds.Count(in allocator); i < cnt; ++i) {
-                    var item = componentIds[in allocator, i];
-                    if (this.components.ContainsKey(in allocator, item) == false) {
-                        return false;
-                    }
-                }
-
-                return true;
-
-            }
-
-            #if INLINE_METHODS
-            [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-            #endif
-            public readonly bool HasNotAll(in MemoryAllocator allocator, ListCopyable<int> componentIds) {
+            public readonly bool HasNotAll(in MemoryAllocator allocator, in MemoryAllocator tempAllocator, List<int> componentIds) {
 
                 for (int i = 0, cnt = componentIds.Count; i < cnt; ++i) {
                     
-                    var item = componentIds[i];
+                    var item = componentIds[in tempAllocator, i];
                     if (this.components.ContainsKey(in allocator, item) == true) {
                         return false;
                     }
@@ -153,7 +215,7 @@ namespace ME.ECS.FiltersArchetype {
             #endif
             public readonly bool HasAllExcept(in MemoryAllocator allocator, List<int> componentIds, int componentId) {
 
-                for (int i = 0, cnt = componentIds.Count(in allocator); i < cnt; ++i) {
+                for (int i = 0, cnt = componentIds.Count; i < cnt; ++i) {
                     
                     var item = componentIds[in allocator, i];
                     if (item == componentId) {
@@ -229,32 +291,30 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            private static int CreateAdd(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storage, int node, in List<int> componentIds, in Dictionary<int, Info> components, int componentId) {
+            private static int CreateAdd(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storage, int node, in List<int> componentIds, in EquatableDictionary<int, int> components, int componentId) {
 
                 if (storage.TryGetArchetypeAdd(ref allocator, componentIds, componentId, out var ar) == true) {
                     return ar;
                 }
 
                 var arch = new Archetype() {
-                    edgesToAdd = new Dictionary<int, int>(ref allocator, 16),
-                    edgesToRemove = new Dictionary<int, int>(ref allocator, 16),
-                    entitiesArr = new List<int>(ref allocator, 16),
-                    entitiesContains = new HashSet<int>(ref allocator, 16),
-                    componentIds = new List<int>(ref allocator, componentIds.Count(in allocator) + 1),
-                    components = new Dictionary<int, Info>(ref allocator, components.Count(in allocator) + 1),
+                    edgesToAdd = new EquatableDictionary<int, int>(ref allocator, 1),
+                    edgesToRemove = new EquatableDictionary<int, int>(ref allocator, 1),
+                    entitiesArr = new List<int>(ref allocator, 1),
+                    entitiesContains = new EquatableHashSet<int>(ref allocator, 1),
+                    componentIds = new List<int>(ref allocator, componentIds.Count + 1),
+                    components = new EquatableDictionary<int, int>(ref allocator, components.Count + 1),
                 };
                 arch.components.CopyFrom(ref allocator, components);
                 arch.componentIds.AddRange(ref allocator, componentIds);
-                arch.components.Add(ref allocator, componentId, new Info() {
-                    index = arch.componentIds.Count(in allocator),
-                });
+                arch.components.Add(ref allocator, componentId,  arch.componentIds.Count);
                 arch.componentIds.Add(ref allocator, componentId);
                 if (node >= 0) {
                     arch.edgesToRemove.Add(ref allocator, componentId, node);
                 }
 
                 storage.isArchetypesDirty = true;
-                var idx = storage.allArchetypes.Count(in allocator);
+                var idx = storage.allArchetypes.Count;
                 arch.index = idx;
 
                 storage.dirtyArchetypes.Add(ref allocator, idx);
@@ -267,33 +327,30 @@ namespace ME.ECS.FiltersArchetype {
             #if INLINE_METHODS
             [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
             #endif
-            private static int CreateRemove(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storage, int node, in List<int> componentIds, in Dictionary<int, Info> components, int componentId) {
+            private static int CreateRemove(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storage, int node, in List<int> componentIds, in EquatableDictionary<int, int> components, int componentId) {
 
                 if (storage.TryGetArchetypeRemove(ref allocator, componentIds, componentId, out var ar) == true) {
                     return ar;
                 }
 
                 var arch = new Archetype() {
-                    edgesToAdd = new Dictionary<int, int>(ref allocator, 16),
-                    edgesToRemove = new Dictionary<int, int>(ref allocator, 16),
-                    entitiesArr = new List<int>(ref allocator, 16),
-                    entitiesContains = new HashSet<int>(ref allocator, 16),
-                    componentIds = new List<int>(ref allocator, componentIds.Count(in allocator) - 1),
-                    components = new Dictionary<int, Info>(ref allocator, components.Count(in allocator) - 1),
+                    edgesToAdd = new EquatableDictionary<int, int>(ref allocator, 1),
+                    edgesToRemove = new EquatableDictionary<int, int>(ref allocator, 1),
+                    entitiesArr = new List<int>(ref allocator, 1),
+                    entitiesContains = new EquatableHashSet<int>(ref allocator, 1),
+                    componentIds = new List<int>(ref allocator, componentIds.Count - 1),
+                    components = new EquatableDictionary<int, int>(ref allocator, components.Count - 1),
                 };
                 arch.componentIds.AddRange(ref allocator, componentIds);
                 storage.isArchetypesDirty = true;
-                var idx = storage.allArchetypes.Count(in allocator);
+                var idx = storage.allArchetypes.Count;
                 arch.index = idx;
                 
-                var info = components[in allocator, componentId];
-                arch.componentIds.RemoveAt(ref allocator, info.index);
-                for (var i = 0; i < arch.componentIds.Count(in allocator); ++i) {
+                var infoIndex = components[in allocator, componentId];
+                arch.componentIds.RemoveAt(ref allocator, infoIndex);
+                for (var i = 0; i < arch.componentIds.Count; ++i) {
                     var cId = arch.componentIds[in allocator, i];
-                    arch.components.Add(ref allocator, cId, new Info() {
-                        index = i,
-                    });
-                    
+                    arch.components.Add(ref allocator, cId, i);
                 }
 
                 if (node >= 0) {
@@ -316,9 +373,33 @@ namespace ME.ECS.FiltersArchetype {
             
             if (this.dead.isCreated == false) return 0;
             
-            return this.versions.GetHash(in allocator) ^ this.flags.GetHash(in allocator) ^ this.aliveCount ^ this.nextEntityId ^ this.dead.Count(in allocator) ^ this.allArchetypes.Count(in allocator);
+            return this.versions.GetHash(in allocator) ^ this.flags.GetHash(in allocator) ^ this.aliveCount ^ this.nextEntityId ^ this.dead.Count ^ this.allArchetypes.Count;
 
         }
+
+        /*#if INLINE_METHODS
+        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
+        #endif
+        private void CleanUpArchetype(ref MemoryAllocator allocator, ref Archetype arch) {
+
+            if (arch.entitiesArr.Count == 0) {
+                arch.entitiesArr.Dispose(ref allocator);
+                arch.entitiesContains.Dispose(ref allocator);
+            }
+            
+        }
+
+        #if INLINE_METHODS
+        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
+        #endif
+        private void ValidateArchetype(ref MemoryAllocator allocator, ref Archetype arch) {
+
+            if (arch.entitiesArr.isCreated == false) {
+                arch.entitiesArr = new List<int>(ref allocator, 1);
+                arch.entitiesContains = new HashSet<int>(ref allocator, 1);
+            }
+            
+        }*/
 
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
@@ -326,9 +407,10 @@ namespace ME.ECS.FiltersArchetype {
         private void RemoveEntityFromArch(ref MemoryAllocator allocator, ref Archetype arch, int entityId) {
 
             var idx = this.GetEntityArrIndex(ref allocator, entityId);
-            var movedEntityId = arch.entitiesArr[in allocator, arch.entitiesArr.Count(in allocator) - 1];
+            var movedEntityId = arch.entitiesArr[in allocator, arch.entitiesArr.Count - 1];
             arch.entitiesArr.RemoveAtFast(ref allocator, idx);
             arch.entitiesContains.Remove(ref allocator, entityId);
+            //this.CleanUpArchetype(ref allocator, ref arch);
             if (movedEntityId != entityId) this.SetEntityArrIndex(ref allocator, movedEntityId, idx);
             this.SetEntityArrIndex(ref allocator, entityId, -1);
             
@@ -339,7 +421,8 @@ namespace ME.ECS.FiltersArchetype {
         #endif
         private void AddEntityToArch(ref MemoryAllocator allocator, ref Archetype arch, int entityId) {
 
-            var idx = arch.entitiesArr.Count(in allocator);
+            //this.ValidateArchetype(ref allocator, ref arch);
+            var idx = arch.entitiesArr.Count;
             arch.entitiesArr.Add(ref allocator, entityId);
             arch.entitiesContains.Add(ref allocator, entityId);
             this.SetEntityArrIndex(ref allocator, entityId, idx);
@@ -380,26 +463,26 @@ namespace ME.ECS.FiltersArchetype {
         [ME.ECS.Serializer.SerializeField]
         internal int root;
         [ME.ECS.Serializer.SerializeField]
-        internal Dictionary<ulong, int> index;
+        internal EquatableDictionary<ulong, int> index;
         [ME.ECS.Serializer.SerializeField]
         internal List<Archetype> allArchetypes;
         [ME.ECS.Serializer.SerializeField]
         internal List<FilterData> filters;
         [ME.ECS.Serializer.SerializeField]
-        internal ME.ECS.EntityVersions versions;
+        public ME.ECS.EntityVersions versions;
         [ME.ECS.Serializer.SerializeField]
         internal ME.ECS.EntityFlags flags;
         [ME.ECS.Serializer.SerializeField]
         internal List<int> entitiesArrIndex;
         [ME.ECS.Serializer.SerializeField]
-        internal HashSet<int> dirtyArchetypes;
+        internal EquatableHashSet<int> dirtyArchetypes;
 
         #region Entities Storage
         public int AliveCount => this.aliveCount;
-        public int DeadCount(in MemoryAllocator allocator) => this.dead.Count(in allocator);
+        public int DeadCount(in MemoryAllocator allocator) => this.dead.Count;
 
         [ME.ECS.Serializer.SerializeField]
-        internal MemArrayAllocator<Entity> cache;
+        public MemArrayAllocator<Entity> cache;
         [ME.ECS.Serializer.SerializeField]
         internal List<int> dead;
         [ME.ECS.Serializer.SerializeField]
@@ -411,11 +494,13 @@ namespace ME.ECS.FiltersArchetype {
         [ME.ECS.Serializer.SerializeField]
         internal int nextEntityId;
         [ME.ECS.Serializer.SerializeField]
+        [MarshalAs(UnmanagedType.U1)]
         internal bool isCreated;
 
         [ME.ECS.Serializer.SerializeField]
         private List<Request> requests;
         [ME.ECS.Serializer.SerializeField]
+        [MarshalAs(UnmanagedType.U1)]
         private bool isArchetypesDirty;
 
         #if INLINE_METHODS
@@ -453,19 +538,19 @@ namespace ME.ECS.FiltersArchetype {
             this.requests = new List<Request>(ref allocator, 10);
 
             var arch = new Archetype() {
-                edgesToAdd = new Dictionary<int, int>(ref allocator, 16),
-                edgesToRemove = new Dictionary<int, int>(ref allocator, 16),
+                edgesToAdd = new EquatableDictionary<int, int>(ref allocator, 16),
+                edgesToRemove = new EquatableDictionary<int, int>(ref allocator, 16),
                 entitiesArr = new List<int>(ref allocator, 16),
-                entitiesContains = new HashSet<int>(ref allocator, 16),
-                componentIds = new List<int>(ref allocator, 10),
-                components = new Dictionary<int, Archetype.Info>(ref allocator, 16),
+                entitiesContains = new EquatableHashSet<int>(ref allocator, 16),
+                componentIds = new List<int>(ref allocator, 1),
+                components = new EquatableDictionary<int, int>(ref allocator, 1),
                 index = 0,
             };
             this.root = arch.index;
-            this.index = new Dictionary<ulong, int>(ref allocator, 16);
+            this.index = new EquatableDictionary<ulong, int>(ref allocator, 100);
             this.allArchetypes = new List<Archetype>(ref allocator, capacity);
             this.filters = new List<FilterData>(ref allocator, capacity);
-            this.dirtyArchetypes = new HashSet<int>(ref allocator, 16);
+            this.dirtyArchetypes = new EquatableHashSet<int>(ref allocator, 16);
             this.allArchetypes.Add(ref allocator, arch);
 
         }
@@ -522,7 +607,7 @@ namespace ME.ECS.FiltersArchetype {
         public bool ForEach(in MemoryAllocator allocator, ListCopyable<Entity> results) {
 
             results.Clear();
-            for (var i = 0; i < this.alive.Count(in allocator); ++i) {
+            for (var i = 0; i < this.alive.Count; ++i) {
                 results.Add(this.GetEntityById(in allocator, this.alive[in allocator, i]));
             }
 
@@ -532,6 +617,7 @@ namespace ME.ECS.FiltersArchetype {
 
         #if !ENTITIES_GROUP_DISABLED
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
+        // ReSharper disable once RedundantAssignment
         public unsafe void Alloc(ref MemoryAllocator allocator, int count, ref EntitiesGroup group, Unity.Collections.Allocator unityAllocator, bool copyMode) {
 
             var lastId = ++this.nextEntityId + count;
@@ -554,7 +640,7 @@ namespace ME.ECS.FiltersArchetype {
 
             var array = new Unity.Collections.NativeArray<Entity>(count, unityAllocator, Unity.Collections.NativeArrayOptions.UninitializedMemory);
             var size = sizeof(Entity);
-            Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemCpy(array.GetUnsafePtr(), this.cache.GetUnsafePtr(in allocator), size * count);
+            UnsafeUtility.MemCpy(array.GetUnsafePtr(), (void*)((System.IntPtr)this.cache.GetUnsafePtr(in allocator) + size * from), size * count);
             group = new EntitiesGroup(from, from + count - 1, array, copyMode);
 
         }
@@ -563,8 +649,8 @@ namespace ME.ECS.FiltersArchetype {
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         public ref Entity Alloc(ref MemoryAllocator allocator) {
 
-            var id = -1;
-            if (this.dead.Count(in allocator) > 0) {
+            int id;
+            if (this.dead.Count > 0) {
 
                 id = this.dead[in allocator, 0];
                 this.dead.RemoveAtFast(ref allocator, 0);
@@ -608,7 +694,7 @@ namespace ME.ECS.FiltersArchetype {
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         public void ApplyDead(ref MemoryAllocator allocator) {
 
-            var cnt = this.deadPrepared.Count(in allocator);
+            var cnt = this.deadPrepared.Count;
             if (cnt > 0) {
 
                 for (var i = 0; i < cnt; ++i) {
@@ -664,10 +750,10 @@ namespace ME.ECS.FiltersArchetype {
 
             // Try to search archetype with componentIds + componentId contained in
             arch = default;
-            for (var i = 0; i < this.allArchetypes.Count(in allocator); ++i) {
+            for (var i = 0; i < this.allArchetypes.Count; ++i) {
 
                 ref var ar = ref this.allArchetypes[in allocator, i];
-                if (ar.componentIds.Count(in allocator) == componentIds.Count(in allocator) &&
+                if (ar.componentIds.Count == componentIds.Count &&
                     ar.Has(in allocator, componentId) == true &&
                     ar.HasAll(in allocator, componentIds) == true) {
 
@@ -689,10 +775,10 @@ namespace ME.ECS.FiltersArchetype {
 
             // Try to search archetype with componentIds except componentId contained in
             arch = default;
-            for (var i = 0; i < this.allArchetypes.Count(in allocator); ++i) {
+            for (var i = 0; i < this.allArchetypes.Count; ++i) {
 
                 ref var ar = ref this.allArchetypes[in allocator, i];
-                if (ar.componentIds.Count(in allocator) == componentIds.Count(in allocator) - 1 &&
+                if (ar.componentIds.Count == componentIds.Count - 1 &&
                     ar.Has(in allocator, componentId) == false &&
                     ar.HasAllExcept(in allocator, componentIds, componentId) == true) {
 
@@ -868,7 +954,7 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private void ApplyAllRequests(ref MemoryAllocator allocator) {
+        internal void ApplyAllRequests(ref MemoryAllocator allocator) {
 
             var e = this.requests.GetEnumerator(in allocator);
             while (e.MoveNext() == true) {
@@ -952,6 +1038,7 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
+        // ReSharper disable once CognitiveComplexity
         public int Count(State state, ref MemoryAllocator allocator, int filterId) {
 
             var filterStaticData = Worlds.current.GetFilterStaticData(filterId);
@@ -969,15 +1056,18 @@ namespace ME.ECS.FiltersArchetype {
             var connectedFilters = filterStaticData.data.connectedFilters;
             var connectedTracked = connectedFilters.Count;
 
+            var lambdas = Worlds.current.GetFilterStaticDataLambdas(filterId);
+            ref var tempAllocator = ref Worlds.current.tempAllocator;
             ref var filter = ref this.GetFilter(in allocator, filterId);
             var count = 0;
-            for (int i = 0, cnt = filter.archetypes.Count(in allocator); i < cnt; ++i) {
+            for (int i = 0, cnt = filter.archetypes.Count; i < cnt; ++i) {
 
                 var archId = filter.archetypesList[in allocator, i];
                 var arch = this.allArchetypes[in allocator, archId];
+                if (arch.entitiesArr.isCreated == false) continue;
                 if (changedTracked > 0 || connectedTracked > 0) {
 
-                    for (int index = 0; index < arch.entitiesArr.Count(in allocator); ++index) {
+                    for (int index = 0; index < arch.entitiesArr.Count; ++index) {
 
                         var entityId = arch.entitiesArr[in allocator, index];
                         
@@ -986,8 +1076,9 @@ namespace ME.ECS.FiltersArchetype {
                             // Check if all custom filters contains connected entity
                             var found = true;
                             for (int j = 0, cntj = connectedTracked; j < cntj; ++j) {
-                                var connectedFilter = connectedFilters[j];
-                                if (connectedFilter.filter.Contains(in allocator, connectedFilter.get.Invoke(entity)) == false) {
+                                var connectedFilter = connectedFilters[in tempAllocator, j];
+                                var connectedLambda = lambdas[j];
+                                if (connectedFilter.filter.Contains(in allocator, connectedLambda.get.Invoke(entity)) == false) {
                                     found = false;
                                     break;
                                 }
@@ -1002,7 +1093,7 @@ namespace ME.ECS.FiltersArchetype {
                             var hasChanged = false;
                             // Check if any component has changed on this entity
                             for (int j = 0, cntj = changedTracked; j < cntj; ++j) {
-                                var typeId = onChanged[j];
+                                var typeId = onChanged[in tempAllocator, j];
                                 var reg = Worlds.current.currentState.structComponents.list.arr[typeId];
                                 if (reg.HasChanged(entityId) == true) {
                                     hasChanged = true;
@@ -1023,7 +1114,7 @@ namespace ME.ECS.FiltersArchetype {
                 
                 if (changedTracked == 0 && connectedTracked == 0) {
 
-                    count += arch.entitiesArr.Count(in allocator);
+                    count += arch.entitiesArr.Count;
 
                 }
 
@@ -1035,7 +1126,7 @@ namespace ME.ECS.FiltersArchetype {
 
         public void MarkAllArchetypesAsDirty(ref MemoryAllocator allocator) {
 
-            for (int archId = 0, cnt2 = this.allArchetypes.Count(in allocator); archId < cnt2; ++archId) {
+            for (int archId = 0, cnt2 = this.allArchetypes.Count; archId < cnt2; ++archId) {
                 
                 this.dirtyArchetypes.Add(ref allocator, archId);
                 
@@ -1046,6 +1137,7 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
+        // ReSharper disable once CognitiveComplexity
         public void UpdateFilters(State state, ref MemoryAllocator allocator) {
 
             if (this.forEachMode > 0) {
@@ -1058,40 +1150,17 @@ namespace ME.ECS.FiltersArchetype {
             if (this.isArchetypesDirty == true) {
 
                 this.isArchetypesDirty = false;
+
                 var world = Worlds.current;
-                for (int idx = 0, cnt = this.filters.Count(in allocator); idx < cnt; ++idx) {
-                    
-                    ref var item = ref this.filters[in allocator, idx];
-                    var e = this.dirtyArchetypes.GetEnumerator(state);
-                    while (e.MoveNext() == true) {
+                ref var buffer = ref world.GetFilterStaticDataBuffer();
+                var tempAllocator = world.tempAllocator;
 
-                        var archId = e.Current;
-                        if (item.archetypes.Contains(in allocator, archId) == true) continue;
-
-                        var filterStaticData = world.GetFilterStaticData(item.id);
-                        ref var arch = ref this.allArchetypes[in allocator, archId];
-                        
-                        if (arch.HasAll(in allocator, filterStaticData.data.contains) == true &&
-                            arch.HasNotAll(in allocator, filterStaticData.data.notContains) == true &&
-                            arch.HasAnyPair(in allocator, filterStaticData.data.anyPair2) == true &&
-                            arch.HasAnyPair(in allocator, filterStaticData.data.anyPair3) == true &&
-                            arch.HasAnyPair(in allocator, filterStaticData.data.anyPair4) == true
-                            #if !FILTERS_LAMBDA_DISABLED
-                            && FiltersArchetypeStorage.CheckLambdas(in allocator, in arch, filterStaticData.data.lambdas) == true
-                            #endif
-                            ) {
-
-                            item.archetypes.Add(ref allocator, archId);
-                            item.archetypesList.Add(ref allocator, archId);
-
-                        }
-
-                    }
-                    e.Dispose();
-                    
-                }
-
-                this.dirtyArchetypes.Clear(in allocator);
+                FiltersArchetypeStorageBurst.UpdateFilters(ref allocator,
+                                                           in tempAllocator,
+                                                           ref buffer,
+                                                           ref this.filters,
+                                                           ref this.allArchetypes,
+                                                           ref this.dirtyArchetypes);
 
             }
 
@@ -1099,15 +1168,15 @@ namespace ME.ECS.FiltersArchetype {
         
         #if !FILTERS_LAMBDA_DISABLED
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static bool CheckLambdas(in MemoryAllocator allocator, in Archetype arch, ListCopyable<int> lambdas) {
+        internal static bool CheckLambdas(in MemoryAllocator allocator, in MemoryAllocator tempAllocator, in Archetype arch, List<int> lambdas) {
 
-            return arch.HasAll(in allocator, lambdas);
+            return arch.HasAll(in allocator, in tempAllocator, lambdas);
 
         }
         #endif
 
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        internal static bool CheckStaticShared(ListCopyable<int> containsShared, ListCopyable<int> notContainsShared) {
+        internal static bool CheckStaticShared(List<int> containsShared, List<int> notContainsShared) {
 
             if (containsShared.Count == 0 && notContainsShared.Count == 0) {
                 return true;
@@ -1116,7 +1185,7 @@ namespace ME.ECS.FiltersArchetype {
             var w = Worlds.current;
             for (int i = 0, count = containsShared.Count; i < count; ++i) {
 
-                if (w.HasSharedDataBit(containsShared[i]) == false) {
+                if (w.HasSharedDataBit(containsShared[in w.tempAllocator, i]) == false) {
                     return false;
                 }
 
@@ -1124,7 +1193,7 @@ namespace ME.ECS.FiltersArchetype {
 
             for (int i = 0, count = notContainsShared.Count; i < count; ++i) {
 
-                if (w.HasSharedDataBit(notContainsShared[i]) == true) {
+                if (w.HasSharedDataBit(notContainsShared[in w.tempAllocator, i]) == true) {
                     return false;
                 }
 
@@ -1142,7 +1211,8 @@ namespace ME.ECS.FiltersArchetype {
             filterData = default;
 
             var world = Worlds.current;
-            for (int i = 0, cnt = this.filters.Count(in allocator); i < cnt; ++i) {
+            ref var tempAllocator = ref world.tempAllocator;
+            for (int i = 0, cnt = this.filters.Count; i < cnt; ++i) {
 
                 var filter = this.filters[in allocator, i];
                 var filterStaticData = world.GetFilterStaticData(filter.id);
@@ -1151,17 +1221,17 @@ namespace ME.ECS.FiltersArchetype {
                 if (filterStaticData.data.withinTicks == filterBuilder.data.withinTicks &&
                     filterStaticData.data.withinType == filterBuilder.data.withinType &&
                     filterStaticData.data.withinMinChunkSize == filterBuilder.data.withinMinChunkSize &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.contains, filterBuilder.data.contains) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.notContains, filterBuilder.data.notContains) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.notContainsShared, filterBuilder.data.notContainsShared) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.containsShared, filterBuilder.data.containsShared) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.onChanged, filterBuilder.data.onChanged) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.anyPair2, filterBuilder.data.anyPair2) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.anyPair3, filterBuilder.data.anyPair3) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.anyPair4, filterBuilder.data.anyPair4) == true &&
-                    FiltersArchetypeStorage.IsEquals(filterStaticData.data.connectedFilters, filterBuilder.data.connectedFilters) == true
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.contains, filterBuilder.data.contains) == true &&
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.notContains, filterBuilder.data.notContains) == true &&
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.notContainsShared, filterBuilder.data.notContainsShared) == true &&
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.containsShared, filterBuilder.data.containsShared) == true &&
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.onChanged, filterBuilder.data.onChanged) == true &&
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.anyPair2, filterBuilder.data.anyPair2) == true &&
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.anyPair3, filterBuilder.data.anyPair3) == true &&
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.anyPair4, filterBuilder.data.anyPair4) == true &&
+                    FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.connectedFilters, filterBuilder.data.connectedFilters) == true
                     #if !FILTERS_LAMBDA_DISABLED
-                    && FiltersArchetypeStorage.IsEquals(filterStaticData.data.lambdas, filterBuilder.data.lambdas) == true
+                    && FiltersArchetypeStorage.IsEquals(in tempAllocator, filterStaticData.data.lambdas, filterBuilder.data.lambdas) == true
                     #endif
                     ) {
 
@@ -1179,7 +1249,7 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private static bool IsEquals(ListCopyable<int> list1, ListCopyable<int> list2) {
+        private static bool IsEquals(in MemoryAllocator tempAllocator, List<int> list1, List<int> list2) {
 
             if (list1.Count != list2.Count) {
                 return false;
@@ -1187,7 +1257,7 @@ namespace ME.ECS.FiltersArchetype {
 
             for (var i = 0; i < list1.Count; ++i) {
 
-                if (list2.Contains(list1[i]) == false) {
+                if (list2.Contains(in tempAllocator, list1[in tempAllocator, i]) == false) {
                     return false;
                 }
 
@@ -1200,7 +1270,7 @@ namespace ME.ECS.FiltersArchetype {
         #if INLINE_METHODS
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         #endif
-        private static bool IsEquals<T>(ListCopyable<T> list1, ListCopyable<T> list2) where T : struct, System.IEquatable<T> {
+        private static bool IsEquals<T>(in MemoryAllocator tempAllocator, List<T> list1, List<T> list2) where T : unmanaged, System.IEquatable<T> {
 
             if (list1.Count != list2.Count) {
                 return false;
@@ -1208,7 +1278,7 @@ namespace ME.ECS.FiltersArchetype {
 
             for (var i = 0; i < list1.Count; ++i) {
 
-                if (list2.Contains(list1[i]) == false) {
+                if (list2.Contains(in tempAllocator, list1[in tempAllocator, i]) == false) {
                     return false;
                 }
 
@@ -1232,7 +1302,7 @@ namespace ME.ECS.FiltersArchetype {
         #endif
         public bool WillNew(in MemoryAllocator allocator) {
 
-            return this.dead.Count(in allocator) == 0;
+            return this.dead.Count == 0;
 
         }
 
@@ -1266,7 +1336,7 @@ namespace ME.ECS.FiltersArchetype {
         #endif
         public bool IsDeadPrepared(in MemoryAllocator allocator, int entityId) {
 
-            if (this.deadPrepared.Count(in allocator) == 0) return false;
+            if (this.deadPrepared.Count == 0) return false;
 
             return this.deadPrepared.Contains(in allocator, entityId);
 

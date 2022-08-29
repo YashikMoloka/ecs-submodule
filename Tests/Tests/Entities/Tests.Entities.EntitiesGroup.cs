@@ -6,31 +6,6 @@ namespace ME.ECS.Tests {
         private class TestState : State {}
         public struct TestComponent : IComponent {}
 
-        private class TestDataConfigSystem : ISystem, IAdvanceTick {
-
-            public World world { get; set; }
-
-            public int testValueCount;
-            private Filter filter;
-            
-            public void OnConstruct() {
-                
-                this.filter = Filter.Create("Test").With<DataConfigTestComponent>().Push();
-                
-            }
-
-            public void OnDeconstruct() {
-                
-            }
-
-            public void AdvanceTick(in float deltaTime) {
-                
-                NUnit.Framework.Assert.AreEqual(this.testValueCount, this.filter.Count);
-                
-            }
-
-        }
-
         private class TestSystem : ISystem, IAdvanceTick {
 
             public World world { get; set; }
@@ -145,53 +120,6 @@ namespace ME.ECS.Tests {
                     var entitiesGroup = world.AddEntities(count, Unity.Collections.Allocator.Temp, copyMode: true);
                     entitiesGroup.Set(new TestComponent());
                     entitiesGroup.Remove<TestComponent>();
-                    entitiesGroup.Dispose();
-
-                }
-            }
-            world.SaveResetState<TestState>();
-            
-            world.SetFromToTicks(0, 1);
-            world.Update(1f);
-            
-            WorldUtilities.ReleaseWorld<TestState>(ref world);
-
-        }
-
-        [NUnit.Framework.TestAttribute]
-        public void ApplyConfig() {
-
-            var config = UnityEngine.Resources.Load<ME.ECS.DataConfigs.DataConfig>("Test");
-            
-            World world = null;
-            WorldUtilities.CreateWorld<TestState>(ref world, 0.033f);
-            {
-                world.AddModule<TestStatesHistoryModule>();
-                world.AddModule<TestNetworkModule>();
-                world.SetState<TestState>(WorldUtilities.CreateState<TestState>());
-                world.SetSeed(1u);
-                {
-                    WorldUtilities.InitComponentTypeId<TestComponent>(false);
-                    WorldUtilities.InitComponentTypeId<DataConfigTestComponent>(false);
-                    ComponentsInitializerWorld.Setup((e) => {
-                
-                        e.ValidateData<TestComponent>();
-                        e.ValidateData<DataConfigTestComponent>();
-                
-                    });
-                }
-                {
-                    
-                    var count = 10000;
-                    var group = new SystemGroup(world, "TestGroup");
-                    group.AddSystem(new TestDataConfigSystem() {
-                        testValueCount = count,
-                    });
-                    
-                    config.Prewarm(true);
-
-                    var entitiesGroup = world.AddEntities(count, Unity.Collections.Allocator.Temp, copyMode: true);
-                    config.Apply(entitiesGroup);
                     entitiesGroup.Dispose();
 
                 }

@@ -17,11 +17,13 @@ namespace ME.ECS {
     #if !COMPONENTS_VERSION_NO_STATE_DISABLED
     public interface IVersionedNoState : IComponentBase { }
     #endif
+    
+    public interface IComponentDisposableBase : IComponentBase {}
 
-    [System.Obsolete("Use IComponent")]
-    public interface IComponentDisposable : IComponentBase {
+    public interface IComponentDisposable<T> : IComponentDisposableBase where T : IComponentDisposable<T> {
 
-        void OnDispose();
+        void OnDispose(ref ME.ECS.Collections.V3.MemoryAllocator allocator);
+        void ReplaceWith(ref ME.ECS.Collections.V3.MemoryAllocator allocator, in T other);
 
     }
 
@@ -39,5 +41,11 @@ namespace ME.ECS {
 
     }
     #endif
+
+    /// <summary>
+    /// Used in data configs
+    /// If component has this interface - it would be ignored in DataConfig::Apply method
+    /// </summary>
+    public interface IComponentStatic : IComponentBase { }
 
 }

@@ -339,7 +339,6 @@ namespace ME.ECS.Tests {
                 }
             
                 var ent = new Entity("Test Entity");
-                ent.SetPosition(float3.zero);
                 ent.Set(new TestStructComponent());
             
                 world.SaveResetState<TestState>();
@@ -419,10 +418,6 @@ namespace ME.ECS.Tests {
 
                 ref var data = ref entity.Get<TestStructComponent>();
                 ++data.f;
-                
-                var pos = entity.GetPosition();
-                pos += (float3)UnityEngine.Vector3.one;
-                entity.SetPosition(pos);
                 
                 if (entity.Has<ME.ECS.Views.ViewComponent>() == false) entity.InstantiateView(this.viewId);
                 
@@ -592,14 +587,12 @@ namespace ME.ECS.Tests {
             public class FakeSerializer : ME.ECS.Network.ISerializer {
                 
                 public byte[] SerializeWorld(World.WorldState data) {
-                    var ser = new Serializers();
-                    ser.Add(new BufferArraySerializer());
+                    var ser = ME.ECS.Serializer.ECSSerializers.GetSerializers();
                     return ME.ECS.Serializer.Serializer.Pack(data, ser);
                 }
 
                 public World.WorldState DeserializeWorld(byte[] bytes) {
-                    var ser = new Serializers();
-                    ser.Add(new BufferArraySerializer());
+                    var ser = ME.ECS.Serializer.ECSSerializers.GetSerializers();
                     return ME.ECS.Serializer.Serializer.Unpack<World.WorldState>(bytes, ser);
                 }
 

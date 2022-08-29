@@ -19,19 +19,20 @@ namespace ME.ECS {
     [Il2Cpp(Option.DivideByZeroChecks, false)]
     public partial class World {
 
-        private BufferArray<FilterStaticData> filtersStaticData;
+        private MemArrayAllocator<FilterStaticData> filtersStaticData;
+        private BufferArray<ListCopyable<ConnectInfoLambda>> filtersStaticDataLambdas;
         
         internal void OnSpawnFilters() { }
 
         internal void OnRecycleFilters() {
 
-            for (int i = 0; i < this.filtersStaticData.Length; ++i) {
+            for (int i = 0; i < this.filtersStaticDataLambdas.Length; ++i) {
                 
-                this.filtersStaticData[i].data.Recycle();
-                
+                if (this.filtersStaticDataLambdas.arr[i] != null) PoolListCopyable<ConnectInfoLambda>.Recycle(ref this.filtersStaticDataLambdas.arr[i]);
+
             }
-            PoolArray<FilterStaticData>.Recycle(ref this.filtersStaticData);
-            
+            PoolArray<ListCopyable<ConnectInfoLambda>>.Recycle(ref this.filtersStaticDataLambdas);
+
         }
 
         public void Register(ref MemoryAllocator allocator, ref FiltersArchetypeStorage storageRef, bool freeze, bool restore) {
@@ -124,8 +125,6 @@ namespace ME.ECS {
 
         }
 
-        public void UpdateFilterByStructComponent(ref MemoryAllocator allocator, in Entity entity, int componentId) { }
-
         public void ValidateFilterByStructComponent(ref MemoryAllocator allocator, in Entity entity, int componentId, bool makeRequest = false) {
 
             this.currentState.storage.Validate(ref allocator, in entity, componentId, makeRequest);
@@ -150,20 +149,10 @@ namespace ME.ECS {
 
         }
 
-        public void UpdateFilterByStructComponent<T>(ref MemoryAllocator allocator, in Entity entity) where T : struct, IComponentBase { }
-
-        public void UpdateFilterByStructComponentVersioned<T>(ref MemoryAllocator allocator, in Entity entity) where T : struct, IComponentBase { }
-
         public void RemoveComponentFromFilter(ref MemoryAllocator allocator, in Entity entity) {
 
             // Remove all components from entity
             this.RemoveFromAllFilters(ref allocator, in entity);
-
-        }
-
-        public void AddComponentToFilter(ref MemoryAllocator allocator, in Entity entity) {
-
-            // Update filters for this entity
 
         }
 
@@ -173,20 +162,36 @@ namespace ME.ECS {
 
         }
 
-        internal void SetFilterStaticData(int id, FilterInternalData data) {
+        internal void SetFilterStaticData(int id, FilterInternalData data, ListCopyable<ConnectInfoLambda> dataLambdas) {
 
-            ArrayUtils.Resize(id, ref this.filtersStaticData, true);
-            this.filtersStaticData.arr[id] = new FilterStaticData() {
+            this.filtersStaticData.Resize(ref this.tempAllocator, id + 1);
+            this.filtersStaticData[in this.tempAllocator, id] = new FilterStaticData() {
                 isCreated = true,
                 data = data,
             };
+            
+            ArrayUtils.Resize(id, ref this.filtersStaticDataLambdas, true);
+            this.filtersStaticDataLambdas.arr[id] = dataLambdas;
 
         }
 
         internal ref FilterStaticData GetFilterStaticData(int id) {
             
-            ArrayUtils.Resize(id, ref this.filtersStaticData, true);
-            return ref this.filtersStaticData.arr[id];
+            this.filtersStaticData.Resize(ref this.tempAllocator, id + 1);
+            return ref this.filtersStaticData[in this.tempAllocator, id];
+
+        }
+
+        internal ref MemArrayAllocator<FilterStaticData> GetFilterStaticDataBuffer() {
+            
+            return ref this.filtersStaticData;
+
+        }
+
+        internal ListCopyable<ConnectInfoLambda> GetFilterStaticDataLambdas(int id) {
+            
+            ArrayUtils.Resize(id, ref this.filtersStaticDataLambdas, true);
+            return this.filtersStaticDataLambdas.arr[id];
 
         }
 

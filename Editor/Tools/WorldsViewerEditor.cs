@@ -15,7 +15,7 @@ namespace ME.ECSEditor {
         private Vector2 scrollPosition;
         private Vector2 scrollEntitiesPosition;
 
-        [MenuItem("ME.ECS/Worlds Viewer...")]
+        [MenuItem("ME.ECS/\u2630 Worlds Viewer...", priority = 10000)]
         public static void ShowInstance() {
 
             var instance = EditorWindow.GetWindow(typeof(WorldsViewerEditor));
@@ -403,7 +403,7 @@ namespace ME.ECSEditor {
 
                                         paramsList.Clear();
                                     
-                                        var name = entity.Read<ME.ECS.Name.Name>().value;
+                                        var name = entity.Read<ME.ECS.Name.Name>().value.Value;
                                         if (name != null) paramsList.Add(name.ToLower());
                                     
                                         var registries = componentsStructStorage.GetAllRegistries();
@@ -709,7 +709,7 @@ namespace ME.ECSEditor {
                             var filtersCnt = 0;
                             var containsFilters = PoolListCopyable<FilterData>.Spawn(1);
                             var filters = world.GetFilters();
-                            for (int i = 0; i < filters.filters.Count(in allocator); ++i) {
+                            for (int i = 0; i < filters.filters.Count; ++i) {
 
                                 var filter = filters.filters[allocator, i];
                                 if (filter.isAlive == false) continue;
@@ -1184,19 +1184,19 @@ namespace ME.ECSEditor {
                                             }
                                             
                                             GUILayoutExt.DrawHeader("Dead");
-                                            for (int i = 0; i < storage.dead.Count(in allocator); ++i) {
+                                            for (int i = 0; i < storage.dead.Count; ++i) {
                                                 var ent = storage.dead[allocator, i];
                                                 GUILayoutExt.DataLabel(ent.ToString());
                                             }
                                             
                                             GUILayoutExt.DrawHeader("Dead (Prepared)");
-                                            for (int i = 0; i < storage.deadPrepared.Count(in allocator); ++i) {
+                                            for (int i = 0; i < storage.deadPrepared.Count; ++i) {
                                                 var ent = storage.deadPrepared[allocator, i];
                                                 GUILayoutExt.DataLabel(ent.ToString());
                                             }
                                             
                                             GUILayoutExt.DrawHeader("Alive");
-                                            for (int i = 0; i < storage.alive.Count(in allocator); ++i) {
+                                            for (int i = 0; i < storage.alive.Count; ++i) {
                                                 var ent = storage.alive[allocator, i];
                                                 GUILayoutExt.DataLabel(ent.ToString());
                                             }

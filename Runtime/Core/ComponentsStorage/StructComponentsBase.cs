@@ -13,6 +13,7 @@ using tfloat = System.Single;
 namespace ME.ECS {
 
     using ME.ECS.Collections;
+    using Collections.MemoryAllocator;
 
     public interface IStructRegistryBase {
 
@@ -325,7 +326,7 @@ namespace ME.ECS {
             }
 
             {
-                var tempList = stackalloc StructComponentsContainer.NextTickTask[this.world.currentState.structComponents.nextTickTasks.Count(in this.world.currentState.allocator)];
+                var tempList = stackalloc StructComponentsContainer.NextTickTask[this.world.currentState.structComponents.nextTickTasks.Count];
                 var e = this.world.currentState.structComponents.nextTickTasks.GetEnumerator(in this.world.currentState.allocator);
                 var k = 0;
                 while (e.MoveNext() == true) {

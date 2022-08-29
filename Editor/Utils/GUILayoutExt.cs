@@ -1,10 +1,16 @@
+#if FIXED_POINT_MATH
+using ME.ECS.Mathematics;
+using tfloat = sfloat;
+#else
+using Unity.Mathematics;
+using tfloat = System.Single;
+#endif
 using UnityEngine;
 using UnityEditor;
 using System;
 using System.IO;
 using System.Linq;
 using System.CodeDom.Compiler;
-using ME.ECS.Mathematics;
 using System.Text.RegularExpressions;
 
 namespace ME.ECSEditor {
@@ -290,7 +296,7 @@ namespace ME.ECSEditor {
 
 	    }
 	    
-	    public static void DrawAddEntityMenu(ME.ECS.Debug.EntityDebugComponent entityDebugComponent) {
+	    public static void DrawAddEntityMenu(ME.ECS.DebugUtils.EntityDebugComponent entityDebugComponent) {
             
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
@@ -357,67 +363,6 @@ namespace ME.ECSEditor {
 	    
 	    private static System.Type[] allStructComponentsWithoutRuntime;
 	    private static System.Type[] allStructComponents;
-
-	    public static void DrawManageDataConfigTemplateMenu(System.Collections.Generic.HashSet<ME.ECS.DataConfigs.DataConfigTemplate> usedComponents, System.Action<ME.ECS.DataConfigs.DataConfigTemplate, bool> onAdd) {
-		    
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            GUIStyle style = new GUIStyle(GUI.skin.button);
-            style.fontSize = 12;
-            style.fixedWidth = 230;
-            style.fixedHeight = 23;
- 
-            var rect = GUILayoutUtility.GetLastRect();
- 
-            if (GUILayout.Button("Manage Templates", style)) {
-                
-                rect.y += 26f;
-                rect.x += rect.width;
-                rect.width = style.fixedWidth;
-                
-                var v2 = GUIUtility.GUIToScreenPoint(new Vector2(rect.x, rect.y));
-                rect.x = v2.x;
-                rect.y = v2.y;
-                rect.height = 320f;
-                
-                var popup = new Popup() {
-	                title = "Components",
-	                autoHeight = false,
-	                screenRect = rect,
-	                searchText = string.Empty,
-	                separator = '.',
-	                
-                };
-                var arr = AssetDatabase.FindAssets("t:DataConfigTemplate");
-                foreach (var guid in arr) {
-
-	                var path = AssetDatabase.GUIDToAssetPath(guid);
-	                var template = AssetDatabase.LoadAssetAtPath<ME.ECS.DataConfigs.DataConfigTemplate>(path);
-	                var isUsed = usedComponents.Contains(template);
-	                var caption = template.name;
-
-	                System.Action<PopupWindowAnim.PopupItem> onItemSelect = (item) => {
-		                
-		                isUsed = usedComponents.Contains(template);
-		                onAdd.Invoke(template, isUsed);
-		                
-		                isUsed = usedComponents.Contains(template);
-		                var tex = isUsed == true ? EditorStyles.toggle.onNormal.scaledBackgrounds[0] : EditorStyles.toggle.normal.scaledBackgrounds[0];
-		                item.image = tex;
-		                
-	                };
-	                
-	                if (isUsed == true) popup.Item("Used." + caption, isUsed == true ? EditorStyles.toggle.onNormal.scaledBackgrounds[0] : EditorStyles.toggle.normal.scaledBackgrounds[0], onItemSelect, searchable: false);
-	                popup.Item(caption, isUsed == true ? EditorStyles.toggle.onNormal.scaledBackgrounds[0] : EditorStyles.toggle.normal.scaledBackgrounds[0], onItemSelect);
-
-                }
-                popup.Show();
-
-            }
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndHorizontal();
- 
-	    }
 
 	    public static void DrawAddComponentMenu(Rect rect, System.Collections.Generic.HashSet<System.Type> usedComponents, System.Action<System.Type, bool> onAdd, bool showRuntime, string caption = "Edit Components", System.Predicate<System.Type> where = null) {
 		    
@@ -819,9 +764,8 @@ namespace ME.ECSEditor {
 				                
 						    usedComponents.Add(addType);
 						    registry.SetObject(entity, (IComponentBase)System.Activator.CreateInstance(addType), StorageType.Default);
-						    Worlds.currentWorld.AddComponentToFilter(ref Worlds.currentWorld.currentState.allocator, entity);
 
-					    }
+                        }
 
 					    break;
 
@@ -911,29 +855,56 @@ namespace ME.ECSEditor {
 
 	    }
 
-	    public static bool IntFieldLeft(ref int state, ref bool isDirty, string caption, string text) {
+        public static bool IntFieldLeft(ref int state, ref bool isDirty, string caption, string text, int minValue = int.MinValue, int maxValue = int.MaxValue) {
 
-		    var labelRich = new GUIStyle(EditorStyles.label);
-		    labelRich.richText = true;
+            var labelRich = new GUIStyle(EditorStyles.numberField);
+            labelRich.richText = true;
 
-		    var isLocalDirty = false;
-		    GUILayout.BeginHorizontal();
-		    var flag = EditorGUILayout.IntField(state, labelRich);
-		    EditorGUILayout.LabelField(caption);
-		    GUILayout.EndHorizontal();
-		    if (flag != state) {
+            var isLocalDirty = false;
+            GUILayout.BeginHorizontal();
+            var flag = EditorGUILayout.IntField(state, labelRich);
+            EditorGUILayout.LabelField(caption);
+            GUILayout.EndHorizontal();
+            if (flag < minValue) flag = minValue;
+            if (flag > maxValue) flag = maxValue;
 
-			    isLocalDirty = true;
-			    isDirty = true;
-			    state = flag;
+            if (flag != state) {
+
+                isLocalDirty = true;
+                isDirty = true;
+                state = flag;
                         
-		    }
-		    if (string.IsNullOrEmpty(text) == false) GUILayoutExt.SmallLabel(text);
-		    EditorGUILayout.Space();
+            }
+            if (string.IsNullOrEmpty(text) == false) GUILayoutExt.SmallLabel(text);
+            EditorGUILayout.Space();
 
-		    return isLocalDirty;
+            return isLocalDirty;
 
-	    }
+        }
+
+        public static bool EnumField<T>(ref T state, ref bool isDirty, string caption, string text) where T : struct, System.Enum {
+
+            var labelRich = new GUIStyle(EditorStyles.popup);
+            labelRich.richText = true;
+
+            var isLocalDirty = false;
+            GUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(caption);
+            var newState = (T)EditorGUILayout.EnumPopup(state, labelRich);
+            GUILayout.EndHorizontal();
+            if (System.Collections.Generic.EqualityComparer<T>.Default.Equals(newState, state) == false) {
+
+                isLocalDirty = true;
+                isDirty = true;
+                state = newState;
+                        
+            }
+            if (string.IsNullOrEmpty(text) == false) GUILayoutExt.SmallLabel(text);
+            EditorGUILayout.Space();
+
+            return isLocalDirty;
+
+        }
 
         public static LayerMask DrawLayerMaskField(string label, LayerMask layerMask) {
 
@@ -1681,11 +1652,13 @@ namespace ME.ECSEditor {
 	        if (type == typeof(Vector3)) return true;
 	        if (type == typeof(Vector4)) return true;
 	        if (type == typeof(Quaternion)) return true;
+            #if FIXED_POINT_MATH
             if (type == typeof(sfloat)) return true;
             if (type == typeof(ME.ECS.Mathematics.quaternion)) return true;
             if (type == typeof(ME.ECS.Mathematics.float2)) return true;
             if (type == typeof(ME.ECS.Mathematics.float3)) return true;
 	        if (type == typeof(ME.ECS.Mathematics.float4)) return true;
+            #endif
 	        return false;
 
         }
@@ -1833,7 +1806,7 @@ namespace ME.ECSEditor {
 			            
 			            var customName = (entity.IsAlive() == true ? entity.Read<ME.ECS.Name.Name>().value : string.Empty);
 			            GUILayout.BeginVertical();
-			            GUILayout.Label(string.IsNullOrEmpty(customName) == false ? customName : "Unnamed");
+			            GUILayout.Label(string.IsNullOrEmpty(customName.Value) == false ? customName.Value : "Unnamed");
 			            GUILayout.Label(entity.ToSmallString(), EditorStyles.miniLabel);
 			            GUILayout.EndVertical();
 			            
@@ -1904,8 +1877,25 @@ namespace ME.ECSEditor {
 		            value = EditorGUILayout.Vector3Field(caption, (Vector3)value);
 
 	            }
+                
+            #if FIXED_POINT_MATH
+            } else if (type == typeof(ME.ECS.Mathematics.quaternion)) {
 
-            }  else if (type == typeof(ME.ECS.Mathematics.float2)) {
+                if (typeCheckOnly == false) {
+
+                    value = (ME.ECS.Mathematics.quaternion)Quaternion.Euler(EditorGUILayout.Vector3Field(caption, (Vector3)((ME.ECS.Mathematics.quaternion)value).ToEuler()));
+
+                }
+
+            } else if (type == typeof(sfloat)) {
+
+                if (typeCheckOnly == false) {
+
+                    value = (sfloat)EditorGUILayout.FloatField(caption, (float)(sfloat)value);
+
+                }
+
+            } else if (type == typeof(ME.ECS.Mathematics.float2)) {
 
 	            if (typeCheckOnly == false) {
 
@@ -1928,7 +1918,7 @@ namespace ME.ECSEditor {
                     value = (ME.ECS.Mathematics.float4)EditorGUILayout.Vector4Field(caption, (Vector4)(ME.ECS.Mathematics.float4)value);
 
                 }
-
+            #endif
             } else if (type == typeof(Vector4)) {
 
                 if (typeCheckOnly == false) {
@@ -1942,22 +1932,6 @@ namespace ME.ECSEditor {
 	            if (typeCheckOnly == false) {
 
 		            value = Quaternion.Euler(EditorGUILayout.Vector3Field(caption, ((Quaternion)value).eulerAngles));
-
-	            }
-
-            } else if (type == typeof(ME.ECS.Mathematics.quaternion)) {
-
-	            if (typeCheckOnly == false) {
-
-		            value = (ME.ECS.Mathematics.quaternion)Quaternion.Euler(EditorGUILayout.Vector3Field(caption, (Vector3)((ME.ECS.Mathematics.quaternion)value).ToEuler()));
-
-	            }
-
-            } else if (type == typeof(sfloat)) {
-
-	            if (typeCheckOnly == false) {
-
-		            value = (sfloat)EditorGUILayout.FloatField(caption, (float)(sfloat)value);
 
 	            }
 

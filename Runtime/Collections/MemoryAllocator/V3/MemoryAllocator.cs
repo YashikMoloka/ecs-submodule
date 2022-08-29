@@ -1,18 +1,135 @@
 ﻿//#define MEMORY_ALLOCATOR_BOUNDS_CHECK
+//#define LOGS_ENABLED
 
 using System;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using INLINE = System.Runtime.CompilerServices.MethodImplAttribute;
+using BURST = Unity.Burst.BurstCompileAttribute;
 
 namespace ME.ECS.Collections.V3 {
 
     using MemPtr = System.Int64;
+    
+    public struct TSize<T> where T : struct {
 
-    public unsafe partial struct MemoryAllocator : IMemoryAllocator<MemoryAllocator, MemPtr> {
+        public static readonly int size = UnsafeUtility.SizeOf<T>();
+
+    }
+
+    public struct TAlign<T> where T : struct {
+
+        public static readonly int align = UnsafeUtility.AlignOf<T>();
+
+    }
+
+    #if !LOGS_ENABLED && !MEMORY_ALLOCATOR_BOUNDS_CHECK
+    //[BURST(CompileSynchronously = true)]
+    #endif
+    public static unsafe class MemoryAllocatorExt {
+
+        #if !LOGS_ENABLED && !MEMORY_ALLOCATOR_BOUNDS_CHECK
+        //[BURST(CompileSynchronously = true)]
+        #endif
+        public static MemPtr Alloc(this ref MemoryAllocator allocator, long size) {
+
+            void* ptr = null;
+
+            for (int i = 0; i < allocator.zonesListCount; i++) {
+                ptr = MemoryAllocator.ZmMalloc(allocator.zonesList[i], (int)size);
+
+                if (ptr != null) {
+                    var memPtr = allocator.GetSafePtr(ptr, i);
+                    #if LOGS_ENABLED
+                    MemoryAllocator.LogAdd(memPtr, size);
+                    #endif
+                    return memPtr;
+                }
+            }
+
+            {
+                var zone = MemoryAllocator.ZmCreateZone((int)Math.Max(size, MemoryAllocator.MIN_ZONE_SIZE));
+                var zoneIndex = allocator.AddZone(zone);
+
+                ptr = MemoryAllocator.ZmMalloc(zone, (int)size);
+
+                var memPtr = allocator.GetSafePtr(ptr, zoneIndex);
+                #if LOGS_ENABLED
+                MemoryAllocator.LogAdd(memPtr, size);
+                #endif
+                return memPtr;
+            }
+
+        }
+
+        #if !LOGS_ENABLED && !MEMORY_ALLOCATOR_BOUNDS_CHECK
+        //[BURST(CompileSynchronously = true)]
+        #endif
+        public static bool Free(this ref MemoryAllocator allocator, MemPtr ptr) {
+
+            if (ptr == 0) return false;
+            
+            var zoneIndex = ptr >> 32;
+            
+            #if LOGS_ENABLED
+            if (startLog == true) {
+                MemoryAllocator.LogRemove(ptr);
+            }
+            #endif
+            
+            #if MEMORY_ALLOCATOR_BOUNDS_CHECK
+            if (zoneIndex >= this.zonesListCount || this.zonesList[zoneIndex]->size < (ptr & MemoryAllocator.OFFSET_MASK)) {
+                throw new OutOfBoundsException();
+            }
+            #endif
+            
+            return MemoryAllocator.ZmFree(allocator.zonesList[zoneIndex], allocator.GetUnsafePtr(ptr));
+        }
+
+    }
+
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+    public unsafe partial struct MemoryAllocator : IDisposable {
+
+        #if LOGS_ENABLED && UNITY_EDITOR
+        [Unity.Burst.BurstDiscardAttribute]
+        public static void LogAdd(MemPtr memPtr, long size) {
+            if (startLog == true) {
+                var str = "ALLOC: " + memPtr + ", SIZE: " + size;
+                strList.Add(memPtr, str + "\n" + UnityEngine.StackTraceUtility.ExtractStackTrace());
+            }
+        }
+
+        [Unity.Burst.BurstDiscardAttribute]
+        public static void LogRemove(MemPtr memPtr) {
+            strList.Remove(memPtr);
+        }
+
+        public static bool startLog;
+        public static System.Collections.Generic.Dictionary<MemPtr, string> strList = new System.Collections.Generic.Dictionary<MemPtr, string>();
+        [UnityEditor.MenuItem("ME.ECS/Debug/Allocator: Start Log")]
+        public static void StartLog() {
+            startLog = true;
+        }
+        
+        [UnityEditor.MenuItem("ME.ECS/Debug/Allocator: End Log")]
+        public static void EndLog() {
+            startLog = false;
+            MemoryAllocator.strList.Clear();
+        }
+        
+        [UnityEditor.MenuItem("ME.ECS/Debug/Allocator: Print Log")]
+        public static void PrintLog() {
+            foreach (var item in MemoryAllocator.strList) {
+                UnityEngine.Debug.Log(item.Key + "\n" + item.Value);
+            }
+        }
+        #endif
 
         private const long OFFSET_MASK = 0xFFFFFFFF;
-        private const long MIN_ZONE_SIZE = 512 * 1024;
+        internal const long MIN_ZONE_SIZE = 512 * 1024;
         private const int MIN_ZONES_LIST_CAPACITY = 20;
 
         [NativeDisableUnsafePtrRestriction]
@@ -23,11 +140,50 @@ namespace ME.ECS.Collections.V3 {
         
         public bool isValid => this.zonesList != null;
 
+        public int GetReservedSize() {
+
+            var size = 0;
+            for (int i = 0; i < this.zonesListCount; i++) {
+                var zone = this.zonesList[i];
+                size += zone->size;
+            }
+
+            return size;
+
+        }
+
+        public int GetUsedSize() {
+
+            var size = 0;
+            for (int i = 0; i < this.zonesListCount; i++) {
+                var zone = this.zonesList[i];
+                size += zone->size;
+                size -= MemoryAllocator.GetZmFreeMemory(zone);
+            }
+
+            return size;
+
+        }
+
+        public int GetFreeSize() {
+
+            var size = 0;
+            for (int i = 0; i < this.zonesListCount; i++) {
+                var zone = this.zonesList[i];
+                size += MemoryAllocator.GetZmFreeMemory(zone);
+            }
+
+            return size;
+
+        }
+
         /// 
         /// Constructors
         /// 
         public MemoryAllocator Initialize(long initialSize, long maxSize = -1L) {
 
+            if (maxSize < initialSize) maxSize = initialSize;
+            
             this.AddZone(MemoryAllocator.ZmCreateZone((int)Math.Max(initialSize, MemoryAllocator.MIN_ZONE_SIZE)));
             
             this.maxSize = maxSize;
@@ -41,7 +197,8 @@ namespace ME.ECS.Collections.V3 {
             
             if (this.zonesList != null) {
                 UnsafeUtility.Free(this.zonesList, Allocator.Persistent);
-            }
+				this.zonesList = null;
+			}
 
             this.zonesListCapacity = 0;
             this.maxSize = default;
@@ -71,7 +228,7 @@ namespace ME.ECS.Collections.V3 {
         }
 
         private void FreeZones() {
-            if (this.zonesList != null) {
+            if (this.zonesListCount > 0 && this.zonesList != null) {
                 for (int i = 0; i < this.zonesListCount; i++) {
                     MemoryAllocator.ZmFreeZone(this.zonesList[i]);
                 }
@@ -80,7 +237,7 @@ namespace ME.ECS.Collections.V3 {
             this.zonesListCount = 0;
         }
 
-        private int AddZone(MemZone* zone) {
+        internal int AddZone(MemZone* zone) {
 
             if (this.zonesListCapacity <= this.zonesListCount) {
                 var capacity = Math.Max(MemoryAllocator.MIN_ZONES_LIST_CAPACITY, this.zonesListCapacity * 2);
@@ -106,82 +263,33 @@ namespace ME.ECS.Collections.V3 {
         /// 
         /// Base
         ///
+        
         [INLINE(256)]
-        public readonly ref T Ref<T>(MemPtr ptr) where T : unmanaged {
+        public readonly ref T Ref<T>(MemPtr ptr) where T : struct {
             return ref UnsafeUtility.AsRef<T>(this.GetUnsafePtr(ptr));
         }
 
         [INLINE(256)]
-        public readonly ref T RefUnmanaged<T>(MemPtr ptr) where T : struct {
-            return ref UnsafeUtility.AsRef<T>(this.GetUnsafePtr(ptr));
-        }
-
-        [INLINE(256)]
-        public MemPtr AllocData<T>(T data) where T : unmanaged {
+        public MemPtr AllocData<T>(T data) where T : struct {
             var ptr = this.Alloc<T>();
             this.Ref<T>(ptr) = data;
             return ptr;
         }
 
         [INLINE(256)]
-        public MemPtr Alloc<T>() where T : unmanaged {
-            var size = sizeof(T);
-            var alignOf = UnsafeUtility.AlignOf<T>();
+        public MemPtr Alloc<T>() where T : struct {
+            var size = TSize<T>.size;
+            var alignOf = TAlign<T>.align;
             return this.Alloc(size + alignOf);
-        }
-
-        [INLINE(256)]
-        public MemPtr AllocUnmanaged<T>() where T : struct {
-            var size = UnsafeUtility.SizeOf<T>();
-            var alignOf = UnsafeUtility.AlignOf<T>();
-            return this.Alloc(size + alignOf);
-        }
-
-        [INLINE(256)]
-        public MemPtr Alloc(long size) {
-
-            void* ptr = null;
-
-            for (int i = 0; i < this.zonesListCount; i++) {
-                ptr = MemoryAllocator.ZmMalloc(this.zonesList[i], (int)size, null);
-
-                if (ptr != null) {
-                    return this.GetSafePtr(ptr, i);
-                }
-            }
-            
-            var zone = MemoryAllocator.ZmCreateZone((int)Math.Max(size, MemoryAllocator.MIN_ZONE_SIZE));
-            var zoneIndex = this.AddZone(zone);
-            
-            ptr = MemoryAllocator.ZmMalloc(zone, (int)size, null);
-
-            return this.GetSafePtr(ptr, zoneIndex);
-            
-        }
-
-        [INLINE(256)]
-        public bool Free(MemPtr ptr) {
-
-            if (ptr == 0) return false;
-            
-            var zoneIndex = ptr >> 32;
-            
-            #if MEMORY_ALLOCATOR_BOUNDS_CHECK
-            if (zoneIndex >= this.zonesListCount || this.zonesList[zoneIndex]->size < (ptr & MemoryAllocator.OFFSET_MASK)) {
-                throw new OutOfBoundsException();
-            }
-            #endif
-            
-            return MemoryAllocator.ZmFree(this.zonesList[zoneIndex], this.GetUnsafePtr(ptr));
         }
 
         [INLINE(256)]
         public MemPtr ReAlloc(MemPtr ptr, long size) {
             
-            if (ptr == 0L) return this.Alloc(size);;
+            if (ptr == 0L) return this.Alloc(size);
 
-            var blockSize = ((MemBlock*)((byte*)this.GetUnsafePtr(ptr) - sizeof(MemBlock)))->size;
-            var blockDataSize = blockSize - sizeof(MemBlock);
+            var blockSize = ((MemBlock*)((byte*)this.GetUnsafePtr(ptr) - TSize<MemBlock>.size))->size;
+            var blockDataSize = blockSize - TSize<MemBlock>.size;
             if (blockDataSize > size) {
                 return ptr;
             }
@@ -262,7 +370,7 @@ namespace ME.ECS.Collections.V3 {
         }
 
         [INLINE(256)]
-        private readonly MemPtr GetSafePtr(void* ptr, int zoneIndex) {
+        internal readonly MemPtr GetSafePtr(void* ptr, int zoneIndex) {
             var index = (long)zoneIndex << 32;
             var offset = ((byte*)ptr - (byte*)this.zonesList[zoneIndex]);
 
@@ -273,37 +381,32 @@ namespace ME.ECS.Collections.V3 {
         /// Arrays
         /// 
         [INLINE(256)]
-        public readonly ref T RefArray<T>(MemPtr ptr, int index) where T : unmanaged {
-            var size = sizeof(T);
+        public readonly ref T RefArray<T>(MemPtr ptr, int index) where T : struct {
+            var size = TSize<T>.size;
             return ref UnsafeUtility.AsRef<T>(this.GetUnsafePtr(ptr + index * size));
         }
 
         [INLINE(256)]
-        public MemPtr ReAllocArray<T>(MemPtr ptr, int newLength) where T : unmanaged {
-            var size = sizeof(T);
+        public MemPtr ReAllocArray<T>(MemPtr ptr, int newLength) where T : struct {
+            var size = TSize<T>.size;
             return this.ReAlloc(ptr, size * newLength);
         }
 
         [INLINE(256)]
-        public MemPtr AllocArray<T>(int length) where T : unmanaged {
-            var size = sizeof(T);
+        public MemPtr ReAllocArray(int sizeOf, MemPtr ptr, int newLength) {
+            var size = sizeOf;
+            return this.ReAlloc(ptr, size * newLength);
+        }
+
+        [INLINE(256)]
+        public MemPtr AllocArray<T>(int length) where T : struct {
+            var size = TSize<T>.size;
             return this.Alloc(size * length);
         }
 
         [INLINE(256)]
-        public readonly ref T RefArrayUnmanaged<T>(MemPtr ptr, int index) where T : struct {
-            var size = UnsafeUtility.SizeOf<T>();
-            return ref UnsafeUtility.AsRef<T>(this.GetUnsafePtr(ptr + index * size));
-        }
-
-        [INLINE(256)]
-        public MemPtr ReAllocArrayUnmanaged<T>(MemPtr ptr, int newLength) where T : struct {
-            var size = UnsafeUtility.SizeOf<T>();
-            return this.ReAlloc(ptr, size * newLength);
-        }
-
-        public MemPtr AllocArrayUnmanaged<T>(int length) where T : struct {
-            var size = UnsafeUtility.SizeOf<T>();
+        public MemPtr AllocArray(int length, int sizeOf) {
+            var size = sizeOf;
             return this.Alloc(size * length);
         }
 

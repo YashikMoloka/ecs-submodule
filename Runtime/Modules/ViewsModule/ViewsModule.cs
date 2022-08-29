@@ -160,10 +160,10 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab) where TProvider : struct, IViewsProviderInitializer {
+        public ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab, ViewId customId) where TProvider : struct, IViewsProviderInitializer {
 
             var viewsModule = this.GetModule<ViewsModule>();
-            return viewsModule.RegisterViewSource(providerInitializer, prefab);
+            return viewsModule.RegisterViewSource(providerInitializer, prefab, customId);
 
         }
 
@@ -249,9 +249,9 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public ViewId RegisterViewSourceShared<TProvider>(TProvider providerInitializer, IView prefab) where TProvider : struct, IViewsProviderInitializer {
+        public ViewId RegisterViewSourceShared<TProvider>(TProvider providerInitializer, IView prefab, ViewId customId = default) where TProvider : struct, IViewsProviderInitializer {
 
-            return this.RegisterViewSource<TProvider>(providerInitializer, prefab);
+            return this.RegisterViewSource<TProvider>(providerInitializer, prefab, customId);
 
         }
 
@@ -365,7 +365,7 @@ namespace ME.ECS.Views {
         void Register(IView instance, ViewInfo viewInfo);
         bool UnRegister(IView instance);
 
-        ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab) where TProvider : struct, IViewsProviderInitializer;
+        ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab, ViewId customId) where TProvider : struct, IViewsProviderInitializer;
         bool UnRegisterViewSource(IView prefab);
 
         void AssignView(IView prefab, in Entity entity, DestroyViewBehaviour destroyViewBehaviour = DestroyViewBehaviour.DestroyWithEntity);
@@ -992,14 +992,19 @@ namespace ME.ECS.Views {
 
         }
 
-        private void RegisterViewSource_INTERNAL<TProvider>(TProvider providerInitializer) where TProvider : struct, IViewsProviderInitializer {
+        private void RegisterViewSource_INTERNAL<TProvider>(TProvider providerInitializer, ViewId customId) where TProvider : struct, IViewsProviderInitializer {
             
-            ++this.viewSourceIdRegistry;
+            if (customId == 0) customId = ++this.viewSourceIdRegistry;
+            while (this.registryPrefabToProvider.ContainsKey(customId) == true) {
+                customId = ++this.viewSourceIdRegistry;
+            }
+            
+            this.viewSourceIdRegistry = customId;
 
             if (this.registryTypeToProviderInfo.TryGetValue(typeof(TProvider), out var existProvider) == true) {
                 
-                this.registryPrefabToProvider.Add(this.viewSourceIdRegistry, existProvider.provider);
-                this.registryPrefabToProviderInitializer.Add(this.viewSourceIdRegistry, existProvider.initializer);
+                this.registryPrefabToProvider.Add(customId, existProvider.provider);
+                this.registryPrefabToProviderInitializer.Add(customId, existProvider.initializer);
                 
             } else {
 
@@ -1007,8 +1012,8 @@ namespace ME.ECS.Views {
                 var provider = viewsProviderInitializer.Create();
                 provider.world = this.world;
                 provider.OnConstruct();
-                this.registryPrefabToProvider.Add(this.viewSourceIdRegistry, provider);
-                this.registryPrefabToProviderInitializer.Add(this.viewSourceIdRegistry, viewsProviderInitializer);
+                this.registryPrefabToProvider.Add(customId, provider);
+                this.registryPrefabToProviderInitializer.Add(customId, viewsProviderInitializer);
                 this.registryTypeToProviderInfo.Add(typeof(TProvider), new ProviderInfo() {
                     provider = provider,
                     initializer = viewsProviderInitializer,
@@ -1018,7 +1023,7 @@ namespace ME.ECS.Views {
 
         }
 
-        public ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab) where TProvider : struct, IViewsProviderInitializer {
+        public ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab, ViewId customId) where TProvider : struct, IViewsProviderInitializer {
 
             if (prefab == null) {
 
@@ -1040,7 +1045,7 @@ namespace ME.ECS.Views {
             }
             #endif
 
-            this.RegisterViewSource_INTERNAL(providerInitializer);
+            this.RegisterViewSource_INTERNAL(providerInitializer, customId);
             this.registryPrefabToId.Add(prefab, this.viewSourceIdRegistry);
             this.registryIdToPrefab.Add(this.viewSourceIdRegistry, prefab);
 
@@ -1246,7 +1251,7 @@ namespace ME.ECS.Views {
             ref var allocator = ref this.world.currentState.allocator;
             if (allEntities.isCreated == true) {
                 
-                for (int j = 0; j < allEntities.Count(in allocator); ++j) {
+                for (int j = 0; j < allEntities.Count; ++j) {
 
                     ref var entityId = ref allEntities[in this.world.currentState.allocator, j];
 
@@ -1295,6 +1300,7 @@ namespace ME.ECS.Views {
         public void UpdatePost(in float deltaTime) {
 
             if (this.world.settings.turnOffViews == true) return;
+            if (this.world.IsReverting() == true) return;
 
             var hasChanged = this.UpdateRequests();
             if (this.world.currentState != null) {
@@ -1306,7 +1312,7 @@ namespace ME.ECS.Views {
                     if (currentViewInstance == null) continue;
                     if (currentViewInstance.entity.IsAliveWithBoundsCheck() == false) continue;
 
-                    var version = currentViewInstance.entity.GetVersionInHierarchy();
+                    var version = WorldStaticCallbacks.GetEntityVersion(currentViewInstance.entity);
                     if (this.forceUpdateState == true || version != currentViewInstance.entityVersion) {
 
                         currentViewInstance.entityVersion = version;

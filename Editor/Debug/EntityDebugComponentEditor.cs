@@ -7,21 +7,21 @@ namespace ME.ECSEditor {
     using ME.ECS;
     using UnityEngine.UIElements;
     
-    [UnityEditor.CustomEditor(typeof(ME.ECS.Debug.EntityDebugComponent), true)]
+    [UnityEditor.CustomEditor(typeof(ME.ECS.DebugUtils.EntityDebugComponent), true)]
     public class EntityDebugComponentEditor : Editor, IEditorContainer {
 
         public class TempDataObject : MonoBehaviour {
 
-            public ME.ECS.Debug.EntityProxyDebugger.ComponentData[] components;
+            public ME.ECS.DebugUtils.EntityProxyDebugger.ComponentData[] components;
             #if !SHARED_COMPONENTS_DISABLED
-            public ME.ECS.Debug.EntityProxyDebugger.ComponentData[] sharedComponents;
+            public ME.ECS.DebugUtils.EntityProxyDebugger.ComponentData[] sharedComponents;
             #endif
 
         }
         
         public GameObject go;
         public TempDataObject temp;
-        private ME.ECS.Debug.EntityProxyDebugger debug;
+        private ME.ECS.DebugUtils.EntityProxyDebugger debug;
 
         private readonly System.Collections.Generic.Dictionary<int, UnityEditor.UIElements.PropertyField> fieldsCacheComponents = new System.Collections.Generic.Dictionary<int, PropertyField>();
         private VisualElement rootElement;
@@ -51,7 +51,7 @@ namespace ME.ECSEditor {
 
         public void OnEnable() {
 
-            var target = this.target as ME.ECS.Debug.EntityDebugComponent;
+            var target = this.target as ME.ECS.DebugUtils.EntityDebugComponent;
             this.go = new GameObject("Temp", typeof(TempDataObject));
             this.go.transform.SetParent(target.transform);
 
@@ -70,7 +70,7 @@ namespace ME.ECSEditor {
 
         public void Update() {
             
-            var target = this.target as ME.ECS.Debug.EntityDebugComponent;
+            var target = this.target as ME.ECS.DebugUtils.EntityDebugComponent;
             var entity = this.UpdateEntity(target.entity);
             if (entity != Entity.Empty) {
                 
@@ -105,7 +105,7 @@ namespace ME.ECSEditor {
 
         private Entity UpdateEntity(Entity entity) {
 
-            var target = this.target as ME.ECS.Debug.EntityDebugComponent;
+            var target = this.target as ME.ECS.DebugUtils.EntityDebugComponent;
             if (target.world != null && target.world.isActive == true) {
 
                 var currentEntity = target.world.GetEntityById(entity.id);
@@ -299,13 +299,13 @@ namespace ME.ECSEditor {
         public override VisualElement CreateInspectorGUI() {
             
             var container = new VisualElement();
-            container.styleSheets.Add(EditorUtilities.Load<StyleSheet>("Editor/Core/DataConfigs/styles.uss", isRequired: true));
+            container.styleSheets.Add(EditorUtilities.Load<StyleSheet>("Editor/Core/styles.uss", isRequired: true));
             this.rootElement = container;
             
-            var target = this.target as ME.ECS.Debug.EntityDebugComponent;
+            var target = this.target as ME.ECS.DebugUtils.EntityDebugComponent;
             if (target.world != null && target.world.isActive == true) {
 
-                this.debug = new ME.ECS.Debug.EntityProxyDebugger(target.entity, target.world);
+                this.debug = new ME.ECS.DebugUtils.EntityProxyDebugger(target.entity, target.world);
                 this.temp.components = this.debug.GetComponentsList();
                 #if !SHARED_COMPONENTS_DISABLED
                 this.temp.sharedComponents = this.debug.GetSharedComponentsList();
@@ -317,9 +317,9 @@ namespace ME.ECSEditor {
                 searchField.RegisterValueChangedCallback((evt) => {
 
                     var search = evt.newValue.ToLower();
-                    DataConfigEditor.Search(search, this.componentsContainer);
+                    GUIExt.Search(search, this.componentsContainer);
                     #if !SHARED_COMPONENTS_DISABLED
-                    DataConfigEditor.Search(search, this.sharedComponentsContainer);
+                    GUIExt.Search(search, this.sharedComponentsContainer);
                     #endif
                 
                 });
@@ -423,18 +423,18 @@ namespace ME.ECSEditor {
             }
             var source = so.FindProperty("components");
             this.fieldsCacheComponents.Clear();
-            DataConfigEditor.BuildInspectorPropertiesElement("data",
-                                                             this,
-                                                             null,
-                                                             source,
-                                                             element,
-                                                             noFields: false,
-                                                             onBuild: (index, propElement) => {
+            GUIExt.BuildInspectorPropertiesElement("data",
+                                                   this,
+                                                   null,
+                                                   source,
+                                                   element,
+                                                   noFields: false,
+                                                   onBuild: (index, propElement) => {
                                                               
-                                                                 this.fieldsCacheComponents.Add(index, propElement);
+                                                       this.fieldsCacheComponents.Add(index, propElement);
                                                               
-                                                             },
-                                                             drawGroups: true);
+                                                   },
+                                                   drawGroups: true);
 
             /*
             this.fieldsCacheComponents.Clear();
@@ -469,17 +469,17 @@ namespace ME.ECSEditor {
             var so = new SerializedObject(this.temp);
             var source = so.FindProperty("sharedComponents");
             this.fieldsCacheSharedComponents.Clear();
-            DataConfigEditor.BuildInspectorPropertiesElement("data",
-                                                             this,
-                                                             null,
-                                                             source,
-                                                             element,
-                                                             noFields: false,
-                                                             onBuild: (index, propElement) => {
+            GUIExt.BuildInspectorPropertiesElement("data",
+                                                         this,
+                                                         null,
+                                                         source,
+                                                         element,
+                                                         noFields: false,
+                                                         onBuild: (index, propElement) => {
                                                               
-                                                                 this.fieldsCacheSharedComponents.Add(index, propElement);
+                                                             this.fieldsCacheSharedComponents.Add(index, propElement);
                                                               
-                                                             });
+                                                         });
             
             this.sharedComponentsDirty = true;
             

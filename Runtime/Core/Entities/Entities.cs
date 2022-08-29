@@ -112,6 +112,16 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
+        public static Entity ValidateDataUnmanagedDisposable<TComponent>(this in Entity entity, bool isTag = false) where TComponent : struct, IComponentDisposable<TComponent> {
+
+            Worlds.currentWorld.ValidateDataUnmanagedDisposable<TComponent>(in entity, isTag);
+            return entity;
+
+        }
+
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
         public static Entity ValidateDataBlittable<TComponent>(this in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase {
 
             Worlds.currentWorld.ValidateDataBlittable<TComponent>(in entity, isTag);
@@ -148,59 +158,11 @@ namespace ME.ECS {
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
     #endif
-    public static partial class EntityExtensionsV2 {
-
-        #if !ENTITY_TIMERS_DISABLED
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static Entity SetTimer(this in Entity entity, uint index, tfloat time) {
-
-            Worlds.currentWorld.SetTimer(in entity, index, time);
-            return entity;
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static tfloat ReadTimer(this in Entity entity, uint index) {
-
-            return Worlds.currentWorld.ReadTimer(in entity, index);
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static ref tfloat GetTimer(this in Entity entity, uint index) {
-
-            return ref Worlds.currentWorld.GetTimer(in entity, index);
-
-        }
-
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static bool RemoveTimer(this in Entity entity, uint index) {
-
-            return Worlds.currentWorld.RemoveTimer(in entity, index);
-
-        }
-        #endif
-
-    }
-
-    #if ECS_COMPILE_IL2CPP_OPTIONS
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
-    #endif
     [System.Serializable]
     #if MESSAGE_PACK_SUPPORT
     [MessagePack.MessagePackObjectAttribute()]
     #endif
-    [System.Diagnostics.DebuggerTypeProxyAttribute(typeof(ME.ECS.Debug.EntityProxyDebugger))]
+    [System.Diagnostics.DebuggerTypeProxyAttribute(typeof(ME.ECS.DebugUtils.EntityProxyDebugger))]
     public readonly struct Entity : System.IEquatable<Entity>, System.IComparable<Entity> {
 
         public const ushort GENERATION_ZERO = 0;

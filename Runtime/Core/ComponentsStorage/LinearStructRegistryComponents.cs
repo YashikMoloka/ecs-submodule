@@ -14,6 +14,7 @@ namespace ME.ECS {
 
     using ME.ECS.Collections;
     using ME.ECS.Collections.V3;
+    using Collections.MemoryAllocator;
 
     public struct Component<TComponent> where TComponent : struct, IComponentBase {
 
@@ -24,6 +25,11 @@ namespace ME.ECS {
     }
 
     #if !SHARED_COMPONENTS_DISABLED
+    #if ECS_COMPILE_IL2CPP_OPTIONS
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+     Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+     Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+    #endif
     public static class SharedGroupDataAPI<TComponent> where TComponent : struct, IComponentBase {
 
         #if INLINE_METHODS
@@ -52,6 +58,11 @@ namespace ME.ECS {
 
     }
     
+    #if ECS_COMPILE_IL2CPP_OPTIONS
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+     Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+     Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+    #endif
     public static class SharedGroupsAPI<TComponent> where TComponent : struct, IComponentBase {
 
         public static System.Collections.Generic.ICollection<uint> GetGroups(ref SharedDataStorageGroup<TComponent> sharedStorage) {
@@ -369,7 +380,7 @@ namespace ME.ECS {
 
             if (this.dirtyMap.isCreated == false) return;
 
-            for (int i = 0, count = this.dirtyMap.Count(in allocator); i < count; ++i) {
+            for (int i = 0, count = this.dirtyMap.Count; i < count; ++i) {
 
                 var idx = this.dirtyMap[in allocator, i];
                 if (idx < 0 || idx >= this.list.Count) {
@@ -731,6 +742,62 @@ namespace ME.ECS {
         }
         #endregion
         
+        #region UnmanagedDisposable
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        public void ValidateUnmanagedDisposable<TComponent>(ref MemoryAllocator allocator, bool isTag = false) where TComponent : struct, IComponentDisposable<TComponent> {
+
+            var code = WorldUtilities.GetAllComponentTypeId<TComponent>();
+            if (isTag == true) WorldUtilities.SetComponentAsTag<TComponent>();
+            this.ValidateUnmanagedDisposable<TComponent>(ref allocator, code, isTag);
+
+        }
+
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        public void ValidateUnmanagedDisposable<TComponent>(ref MemoryAllocator allocator, in Entity entity, bool isTag = false) where TComponent : struct, IComponentDisposable<TComponent> {
+
+            var code = WorldUtilities.GetAllComponentTypeId<TComponent>();
+            this.ValidateUnmanagedDisposable<TComponent>(ref allocator, code, isTag);
+            var reg = (StructComponentsUnmanagedDisposable<TComponent>)this.list.arr[code];
+            reg.Validate(entity.id);
+
+        }
+
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
+         Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        private void ValidateUnmanagedDisposable<TComponent>(ref MemoryAllocator allocator, int code, bool isTag) where TComponent : struct, IComponentDisposable<TComponent> {
+
+            this.unmanagedComponentsStorage.ValidateTypeIdDisposable<TComponent>(ref allocator, code);
+
+            if (ArrayUtils.WillResize(code, ref this.list) == true) {
+
+                ArrayUtils.Resize(code, ref this.list, true);
+
+            }
+
+            if (this.list.arr[code] == null) {
+
+                var instance = PoolRegistries.SpawnUnmanagedDisposable<TComponent>();
+                this.list.arr[code] = instance;
+
+            }
+
+        }
+        #endregion
+        
         #region Tags
         #if ECS_COMPILE_IL2CPP_OPTIONS
         [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
@@ -929,21 +996,29 @@ namespace ME.ECS {
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
          Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
         #endif
-        public void OnRecycle(ref MemoryAllocator allocator) {
+        public void OnRecycle(ref MemoryAllocator allocator, bool destroyAllocator) {
 
-            this.entitiesIndexer.Dispose(ref allocator);
-            
-            if (this.nextTickTasks.isCreated == true) {
+            if (destroyAllocator == false) {
+                
+                this.entitiesIndexer.Dispose(ref allocator);
+                
+                if (this.nextTickTasks.isCreated == true) {
 
-                var e = this.nextTickTasks.GetEnumerator(in allocator);
-                while (e.MoveNext() == true) {
+                    var e = this.nextTickTasks.GetEnumerator(in allocator);
+                    while (e.MoveNext() == true) {
 
-                    var task = e.Current;
-                    task.Dispose(ref allocator);
+                        var task = e.Current;
+                        task.Dispose(ref allocator);
+
+                    }
+                    e.Dispose();
+                    this.nextTickTasks.Dispose(ref allocator);
 
                 }
-                e.Dispose();
-                this.nextTickTasks.Dispose(ref allocator);
+
+                if (this.dirtyMap.isCreated == true) this.dirtyMap.Dispose(ref allocator);
+
+                this.unmanagedComponentsStorage = default;
 
             }
             
@@ -963,10 +1038,6 @@ namespace ME.ECS {
                 PoolArray<StructRegistryBase>.Recycle(ref this.list);
 
             }
-
-            if (this.dirtyMap.isCreated == true) this.dirtyMap.Dispose(ref allocator);
-            
-            this.unmanagedComponentsStorage.Dispose();
 
             this.isCreated = default;
 
@@ -1051,17 +1122,20 @@ namespace ME.ECS {
 
             public StructComponentsContainer storage;
             public MemoryAllocator allocator;
+            public PluginsStorage pluginsStorage;
 
             public void Initialize() {
 
                 this.allocator.Initialize(1024 * 1024, -1);
                 this.storage.Initialize(ref this.allocator, true);
-                
+                this.pluginsStorage.Initialize(ref this.allocator);
+
             }
 
             public void Dispose() {
                 
-                this.storage.OnRecycle(ref this.allocator);
+                this.pluginsStorage = default;
+                this.storage.OnRecycle(ref this.allocator, true);
                 this.allocator.Dispose();
                 
             }
@@ -1191,6 +1265,12 @@ namespace ME.ECS {
 
         }
 
+        public void ValidateDataUnmanagedDisposable<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentDisposable<TComponent> {
+
+            this.currentState.structComponents.ValidateUnmanagedDisposable<TComponent>(ref this.currentState.allocator, in entity, isTag);
+
+        }
+
         public void ValidateDataBlittable<TComponent>(in Entity entity, bool isTag = false) where TComponent : struct, IComponentBase {
 
             this.currentState.structComponents.ValidateBlittable<TComponent>(in entity, isTag);
@@ -1216,14 +1296,8 @@ namespace ME.ECS {
         #endif
         private void UseLifetimeStep(ComponentLifetime step, tfloat deltaTime) {
 
-            #if !ENTITY_TIMERS_DISABLED
-            if (step == ComponentLifetime.NotifyAllSystemsBelow) {
-                
-                this.currentState.timers.Update(ref this.currentState.allocator, deltaTime);
-                
-            }
-            #endif
-        
+            WorldStaticCallbacks.RaiseCallbackLifetimeStep(this, step, deltaTime);
+
             this.UseLifetimeStep(ref this.currentState.allocator, step, deltaTime, ref this.currentState.structComponents);
             this.UseLifetimeStep(ref this.noStateData.allocator, step, deltaTime, ref this.noStateData.storage);
             
@@ -1248,11 +1322,11 @@ namespace ME.ECS {
         private unsafe void UseLifetimeStep(ref MemoryAllocator allocator, ComponentLifetime step, tfloat deltaTime, ref StructComponentsContainer structComponentsContainer) {
 
             ref var list = ref structComponentsContainer.nextTickTasks;
-            if (list.Count(in allocator) > 0) {
+            if (list.Count > 0) {
 
                 // We need to allocate temporary list to store entities
                 // because on entity.Destroy we clean up all data including tasks list
-                var tempList = stackalloc Entity[list.Count(in allocator)];
+                var tempList = stackalloc Entity[list.Count];
                 var k = 0;
                 var cnt = 0;
                 var e = list.GetEnumerator(in allocator);
@@ -1287,7 +1361,7 @@ namespace ME.ECS {
                     tempList[i].Destroy();
                 }
                 
-                if (cnt == list.Count(in allocator)) {
+                if (cnt == list.Count) {
                     
                     // All is null
                     list.Clear(in allocator);
@@ -1406,9 +1480,9 @@ namespace ME.ECS {
             E.IS_ALIVE(in entity);
             E.IS_TAG<TComponent>(in entity);
 
-            if (groupId == 0 && entity.Has<ME.ECS.DataConfigs.DataConfig.SharedData>() == true) {
+            if (groupId == 0 && entity.Has<SharedData>() == true) {
 
-                ref readonly var sharedData = ref entity.Read<ME.ECS.DataConfigs.DataConfig.SharedData>();
+                ref readonly var sharedData = ref entity.Read<SharedData>();
                 ref var allocator = ref Worlds.current.currentState.allocator;
                 if (sharedData.archetypeToId.TryGetValue(in allocator, AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
 
@@ -1438,9 +1512,9 @@ namespace ME.ECS {
             
             E.IS_ALIVE(in entity);
 
-            if (groupId == 0 && entity.Has<ME.ECS.DataConfigs.DataConfig.SharedData>() == true) {
+            if (groupId == 0 && entity.Has<SharedData>() == true) {
 
-                ref readonly var sharedData = ref entity.Read<ME.ECS.DataConfigs.DataConfig.SharedData>();
+                ref readonly var sharedData = ref entity.Read<SharedData>();
                 ref var allocator = ref Worlds.current.currentState.allocator;
                 if (sharedData.archetypeToId.TryGetValue(in allocator, AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
 
@@ -1465,9 +1539,9 @@ namespace ME.ECS {
             E.IS_ALIVE(in entity);
             E.IS_TAG<TComponent>(in entity);
 
-            if (groupId == 0 && entity.Has<ME.ECS.DataConfigs.DataConfig.SharedData>() == true) {
+            if (groupId == 0 && entity.Has<SharedData>() == true) {
 
-                ref readonly var sharedData = ref entity.Read<ME.ECS.DataConfigs.DataConfig.SharedData>();
+                ref readonly var sharedData = ref entity.Read<SharedData>();
                 ref var allocator = ref Worlds.current.currentState.allocator;
                 if (sharedData.archetypeToId.TryGetValue(in allocator, AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
 
@@ -1496,7 +1570,6 @@ namespace ME.ECS {
                 if (ComponentTypes<TComponent>.typeId >= 0) {
 
                     this.AddFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
-                    this.UpdateFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
 
                 }
 
@@ -1551,9 +1624,9 @@ namespace ME.ECS {
             E.IS_ALIVE(in entity);
             E.IS_TAG<TComponent>(in entity);
             
-            if (groupId == 0 && entity.Has<ME.ECS.DataConfigs.DataConfig.SharedData>() == true) {
+            if (groupId == 0 && entity.Has<SharedData>() == true) {
 
-                ref readonly var sharedData = ref entity.Read<ME.ECS.DataConfigs.DataConfig.SharedData>();
+                ref readonly var sharedData = ref entity.Read<SharedData>();
                 ref var allocator = ref Worlds.current.currentState.allocator;
                 if (sharedData.archetypeToId.TryGetValue(in allocator, AllComponentTypes<TComponent>.typeId, out var innerGroupId) == true && innerGroupId != 0) {
 
@@ -1582,7 +1655,6 @@ namespace ME.ECS {
                 if (ComponentTypes<TComponent>.typeId >= 0) {
 
                     this.RemoveFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
-                    this.UpdateFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
 
                 }
 
@@ -1622,7 +1694,6 @@ namespace ME.ECS {
                 if (ComponentTypes<TComponent>.typeId >= 0) {
 
                     this.AddFilterByStructComponent<TComponent>(ref this.currentState.allocator, in entity);
-                    this.UpdateFilterByStructComponent<TComponent>(ref this.currentState.allocator,  entity);
 
                 }
 
@@ -1675,61 +1746,12 @@ namespace ME.ECS {
 
                 this.currentState.storage.versions.Increment(in this.currentState.allocator, in entity);
                 reg.UpdateVersion(in entity);
+                #if !COMPONENTS_VERSION_NO_STATE_DISABLED
                 reg.UpdateVersionNoState(in entity);
+                #endif
 
             }
             
-        }
-        #endif
-        #endregion
-
-        #region TIMERS
-        #if !ENTITY_TIMERS_DISABLED
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public void SetTimer(in Entity entity, uint index, tfloat time) {
-
-            E.IS_LOGIC_STEP(this);
-            E.IS_ALIVE(in entity);
-            
-            this.currentState.timers.Set(ref this.currentState.allocator, in entity, index, time);
-
-        }
-        
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public ref tfloat GetTimer(in Entity entity, uint index) {
-
-            E.IS_LOGIC_STEP(this);
-            E.IS_ALIVE(in entity);
-
-            return ref this.currentState.timers.Get(ref this.currentState.allocator, in entity, index);
-
-        }
-        
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public tfloat ReadTimer(in Entity entity, uint index) {
-            
-            E.IS_ALIVE(in entity);
-
-            return this.currentState.timers.Read(in this.currentState.allocator, in entity, index);
-
-        }
-        
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public bool RemoveTimer(in Entity entity, uint index) {
-            
-            E.IS_LOGIC_STEP(this);
-            E.IS_ALIVE(in entity);
-
-            return this.currentState.timers.Remove(ref this.currentState.allocator, in entity, index);
-
         }
         #endif
         #endregion
@@ -1875,7 +1897,7 @@ namespace ME.ECS {
                 ref var bucket = ref reg.Get(in entity);
                 reg.Replace(ref bucket, in data);
                 DataBufferUtilsBase.PushSetCreate_INTERNAL(ref bucket.state, this, reg, in entity, StorageType.Default, makeRequest: false);
-
+                
             }
 
             /*

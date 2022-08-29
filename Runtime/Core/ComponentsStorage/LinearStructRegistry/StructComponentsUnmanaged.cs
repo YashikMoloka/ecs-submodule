@@ -13,7 +13,7 @@ namespace ME.ECS {
     #endif
     public partial class StructComponentsUnmanaged<TComponent> : StructComponentsBase<TComponent>, IComponentsUnmanaged where TComponent : struct, IComponentBase {
 
-        private ref UnmanagedComponentsStorage storage => ref this.world.currentState.structComponents.unmanagedComponentsStorage;
+        protected ref UnmanagedComponentsStorage storage => ref this.world.currentState.structComponents.unmanagedComponentsStorage;
         private ref UnmanagedComponentsStorage.Item<TComponent> registry => ref this.storage.GetRegistry<TComponent>(in this.allocator);
         
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -21,7 +21,7 @@ namespace ME.ECS {
 
             ref var storage = ref this.storage;
             ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
-            return ref reg.components[in this.allocator, entity.id].state;
+            return ref reg.components.Get(ref this.allocator, entity.id).state;
             
         }
 
@@ -30,7 +30,7 @@ namespace ME.ECS {
             
             ref var storage = ref this.storage;
             ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
-            ref var item = ref reg.components[in this.allocator, entity.id];
+            ref var item = ref reg.components.Get(ref this.allocator, entity.id);
             component = item.data;
             return item.state > 0;
             
@@ -41,7 +41,7 @@ namespace ME.ECS {
 
             ref var storage = ref this.storage;
             ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
-            return ref reg.components[in this.allocator, entity.id];
+            return ref reg.components.Get(ref this.allocator, entity.id);
 
         }
 
@@ -49,7 +49,7 @@ namespace ME.ECS {
             
             ref var storage = ref this.storage;
             ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
-            ref var data = ref reg.components[in this.allocator, entity.id].data;
+            ref var data = ref reg.components.Get(ref this.allocator, entity.id).data;
             return new UnsafeData().SetAsUnmanaged(ref this.allocator, data);
 
         }
@@ -73,7 +73,7 @@ namespace ME.ECS {
 
             ref var storage = ref this.storage;
             ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
-            return reg.components[in this.allocator, entityId].version;
+            return reg.components.Get(ref this.allocator, entityId).version;
 
         }
 
@@ -97,7 +97,7 @@ namespace ME.ECS {
                 var v = (long)this.world.GetCurrentTick();
                 ref var storage = ref this.storage;
                 ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
-                reg.components[in this.allocator, entity.id].version = v;
+                reg.components.Get(ref this.allocator, entity.id).version = v;
             }
 
         }
@@ -131,16 +131,6 @@ namespace ME.ECS {
 
             return PoolRegistries.SpawnUnmanaged<TComponent>();
 
-        }
-
-        public override void OnRecycle() {
-
-            //ref var storage = ref this.storage;
-            //ref var reg = ref storage.GetRegistry<TComponent>();
-            //reg.Dispose(ref storage.allocator);
-
-            base.OnRecycle();
-            
         }
 
         #if INLINE_METHODS
@@ -191,7 +181,9 @@ namespace ME.ECS {
 
             E.IS_ALIVE(in entity);
 
-            return DataUnmanagedBufferUtils.PushRemove_INTERNAL(this.world, in entity, this, storageType);
+            ref var storage = ref this.storage;
+            ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
+            return DataUnmanagedBufferUtils.PushRemove_INTERNAL(this.world, in entity, ref this.allocator, ref reg);
 
         }
 
@@ -231,9 +223,12 @@ namespace ME.ECS {
             if (bucket.state > 0) {
 
                 this.RemoveData(in entity, ref bucket);
+                
+                ref var storage = ref this.storage;
+                ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
+                reg.components.Remove(ref this.allocator, entity.id);
+                
                 bucket.state = 0;
-
-                if (clearAll == false) { }
 
                 return true;
 

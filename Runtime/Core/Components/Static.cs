@@ -44,8 +44,8 @@ namespace ME.ECS {
         public static bool isFilterVersioned = false;
         #if !FILTERS_LAMBDA_DISABLED
         public static readonly Unity.Burst.SharedStatic<byte> burstIsFilterLambda = Unity.Burst.SharedStatic<byte>.GetOrCreate<ComponentTypes<TComponent>, byte>();
-        public static bool isFilterLambda = false;
         #endif
+        public static bool isFilterLambda = false;
 
     }
 
@@ -67,6 +67,7 @@ namespace ME.ECS {
         #endif
         public static bool isSimple = false;
         public static bool isBlittable = false;
+        public static bool isDisposable = false;
         #if COMPONENTS_COPYABLE
         public static bool isCopyable = false;
         #endif
