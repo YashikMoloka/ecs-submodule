@@ -1,16 +1,29 @@
+# Version 2.9
+* Stable release version
+* Runtime.Core:
+  * Memory Allocator stable version released
+  * Modules support and Static API added
+  * ConfigId<>, ViewId<> structs added to use with blittable components
+  * Deprecated methods and modules removed
+* Tests:
+  * New memory allocator collections tests implemented
+  * Major refactoring iteration
+
+19/09/2022
 # Version 2.8
 * Runtime.Modules: RegisterViewSource now provide optional customId
-* Runtime.Core: 
+* Serializer: Threaded option added
+* Runtime.Core:
+  * Entity::Remove<TComponent>(lifetime) method added
   * FilterBag refactoring
   * StatesHistory refactoring
   * ME.ECS.Collab minor fixes for Unity 2020
-* Runtime.Essentials: All essential packages has been moved out from the main repo
-* Runtime.Core:
   * Add-ons window added
   * Initializer Settings: Fixed Behaviour type added
   * Plugins storage in state implemented
   * World Static Callbacks added
   * World simulation steps refactoring
+* Runtime.Essentials: All essential packages has been moved out from the main repo
 
 05/08/2022
 # Version 2.7
