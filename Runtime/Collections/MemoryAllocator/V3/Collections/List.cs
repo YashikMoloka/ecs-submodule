@@ -126,7 +126,7 @@ namespace ME.ECS.Collections.MemoryAllocator {
         [INLINE(256)]
         public readonly MemPtr GetMemPtr(in MemoryAllocator allocator) {
             
-            E.IS_CREATED(this);
+            // E.IS_CREATED(this);
             return this.arr.arrPtr;
             
         }
