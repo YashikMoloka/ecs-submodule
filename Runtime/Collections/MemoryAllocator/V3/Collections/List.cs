@@ -142,7 +142,7 @@ namespace ME.ECS.Collections.MemoryAllocator {
         [INLINE(256)]
         public void Dispose(ref MemoryAllocator allocator) {
 
-            E.IS_CREATED(this);
+            // E.IS_CREATED(this);
             this.arr.Dispose(ref allocator);
             this = default;
             
