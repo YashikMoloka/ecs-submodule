@@ -149,7 +149,7 @@ namespace ME.ECS.Views {
         #endif
         public ViewId RegisterViewSource(UnityEngine.GameObject prefab, ViewId customId = default) {
 
-            return this.RegisterViewSource(new UnityGameObjectProviderInitializer(), prefab.GetComponent<MonoBehaviourView>(), customId);
+            return this.RegisterViewSource(new UnityGameObjectProviderInitializer(), ViewsModule.ViewSourceObject.Create(prefab.GetComponent<MonoBehaviourView>()), customId);
 
         }
 
@@ -183,6 +183,185 @@ namespace ME.ECS.Views.Providers {
     using UnityEngine.Jobs;
     using Collections;
 
+    public struct InterpolatedTransform : System.IEquatable<InterpolatedTransform> {
+
+        public struct Transform : System.IEquatable<Transform> {
+
+            public UnityEngine.Vector3 position;
+            public UnityEngine.Quaternion rotation;
+            public UnityEngine.Vector3 localScale;
+            public bool isDirty;
+
+            public Transform(UnityEngine.Transform transform) {
+
+                this.position = transform.position;
+                this.rotation = transform.rotation;
+                this.localScale = transform.localScale;
+                this.isDirty = true;
+
+            }
+
+            public bool IsEquals(UnityEngine.Transform transform) {
+
+                return this.position == transform.position &&
+                       this.rotation == transform.rotation &&
+                       this.localScale == transform.localScale;
+
+            }
+
+            public bool Equals(Transform other) {
+                return this.position.Equals(other.position) && this.rotation.Equals(other.rotation) && this.localScale.Equals(other.localScale) && this.isDirty == other.isDirty;
+            }
+
+            public override bool Equals(object obj) {
+                return obj is Transform other && Equals(other);
+            }
+
+            public override int GetHashCode() {
+                unchecked {
+                    var hashCode = this.position.GetHashCode();
+                    hashCode = (hashCode * 397) ^ this.rotation.GetHashCode();
+                    hashCode = (hashCode * 397) ^ this.localScale.GetHashCode();
+                    hashCode = (hashCode * 397) ^ this.isDirty.GetHashCode();
+                    return hashCode;
+                }
+            }
+
+        }
+        
+        [System.Serializable]
+        public struct Settings {
+
+            public bool enabled;
+            [UnityEngine.Space(8f)]
+            public float movementSpeed;
+            [UnityEngine.Space(8f)]
+            public float rotationSpeed;
+
+        }
+
+        private readonly MonoBehaviourViewBase view;
+        private readonly UnityEngine.Transform transform;
+        private readonly Settings settings;
+        private Transform targetTransform;
+
+        public UnityEngine.Vector3 position {
+            get => this.targetTransform.position;
+            set {
+                this.targetTransform.position = value;
+                this.targetTransform.isDirty = true;
+            }
+        }
+
+        public UnityEngine.Quaternion rotation {
+            get => this.targetTransform.rotation;
+            set {
+                this.targetTransform.rotation = value;
+                this.targetTransform.isDirty = true;
+            }
+        }
+
+        public UnityEngine.Vector3 localPosition {
+            get => this.transform.localPosition;
+            set => this.transform.localPosition = value;
+        }
+
+        public UnityEngine.Quaternion localRotation {
+            get => this.transform.localRotation;
+            set => this.transform.localRotation = value;
+        }
+
+        public UnityEngine.Vector3 localScale {
+            get => this.targetTransform.localScale;
+            set {
+                this.targetTransform.localScale = value;
+                this.targetTransform.isDirty = true;
+            }
+        }
+
+        public InterpolatedTransform(MonoBehaviourViewBase view, UnityEngine.Transform transform, InterpolatedTransform.Settings settings) {
+
+            this.view = view;
+            this.transform = transform;
+            this.settings = settings;
+            this.targetTransform = new Transform(transform);
+
+        }
+        
+        public void Update(float dt) {
+
+            if (this.settings.enabled == false) {
+
+                if (this.targetTransform.isDirty == false) return;
+
+                this.transform.position = this.targetTransform.position;
+                this.transform.rotation = this.targetTransform.rotation;
+                this.transform.localScale = this.targetTransform.localScale;
+
+                this.targetTransform.isDirty = false;
+
+            } else {
+
+                if (this.targetTransform.isDirty == false) return;
+
+                var maxMovementDelta = this.view.GetInterpolationMovementSpeed() * Worlds.current.tickTime;
+                this.transform.position = UnityEngine.Vector3.MoveTowards(this.transform.position, this.targetTransform.position, maxMovementDelta);
+                
+                var maxRotationDelta = this.view.GetInterpolationRotationSpeed() * Worlds.current.tickTime;
+                this.transform.rotation = UnityEngine.Quaternion.RotateTowards(this.transform.rotation, this.targetTransform.rotation, maxRotationDelta);
+                
+                this.transform.localScale = this.targetTransform.localScale;
+
+                if (this.targetTransform.IsEquals(this.transform) == true) {
+                    
+                    this.targetTransform.isDirty = false;
+
+                }
+
+            }
+
+        }
+
+        public static bool operator ==(UnityEngine.Transform transform, InterpolatedTransform other) {
+            return transform == other.transform;
+        }
+
+        public static bool operator !=(UnityEngine.Transform transform, InterpolatedTransform other) {
+            return !(transform == other);
+        }
+
+        public static bool operator ==(InterpolatedTransform transform, UnityEngine.Transform other) {
+            return transform.transform == other;
+        }
+
+        public static bool operator !=(InterpolatedTransform transform, UnityEngine.Transform other) {
+            return !(transform == other);
+        }
+
+        public static implicit operator UnityEngine.Transform(InterpolatedTransform transform) {
+            return transform.transform;
+        }
+
+        public bool Equals(InterpolatedTransform other) {
+            return Equals(this.view, other.view) && Equals(this.transform, other.transform) && this.settings.Equals(other.settings) && this.targetTransform.Equals(other.targetTransform);
+        }
+
+        public override bool Equals(object obj) {
+            return obj is InterpolatedTransform other && Equals(other);
+        }
+
+        public override int GetHashCode() {
+            unchecked {
+                var hashCode = (this.view != null ? this.view.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (this.transform != null ? this.transform.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ this.settings.GetHashCode();
+                hashCode = (hashCode * 397) ^ this.targetTransform.GetHashCode();
+                return hashCode;
+            }
+        }
+
+    }
+    
     #if ECS_COMPILE_IL2CPP_OPTIONS
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false),
      Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false),
@@ -208,9 +387,41 @@ namespace ME.ECS.Views.Providers {
 
         }
 
+        [System.Serializable]
+        public struct ParentParameters {
+
+            [System.Serializable]
+            public struct Item {
+
+                public UnityEngine.Transform transform;
+                public int parentId;
+
+            }
+
+            public bool enabled;
+            [UnityEngine.Space(8f)]
+            public int parentId;
+            [UnityEngine.Space(8f)]
+            public Item[] roots;
+
+            public UnityEngine.Transform GetRoot(int parentId) {
+
+                for (int i = 0; i < this.roots.Length; ++i) {
+                    if (this.roots[i].parentId == parentId) return this.roots[i].transform;
+                }
+
+                return null;
+
+            }
+
+        }
+        
         public ParticleSystemSimulation particleSystemSimulation;
         public DefaultParameters defaultParameters;
-        new protected UnityEngine.Transform transform;
+        public InterpolatedTransform.Settings interpolationParameters;
+        public ParentParameters parentParameters;
+        
+        new protected InterpolatedTransform transform;
 
         public virtual bool applyStateJob => true;
 
@@ -227,9 +438,12 @@ namespace ME.ECS.Views.Providers {
 
         internal void InitializeTransform() {
 
-            this.transform = base.transform;
+            this.transform = new InterpolatedTransform(this, base.transform, this.interpolationParameters);
 
         }
+
+        public virtual float GetInterpolationMovementSpeed() => this.interpolationParameters.movementSpeed;
+        public virtual float GetInterpolationRotationSpeed() => this.interpolationParameters.rotationSpeed;
 
         public void SimulateParticles(float time, uint seed) {
 
@@ -310,6 +524,15 @@ namespace ME.ECS.Views.Providers {
 
         }
 
+        public UnityEngine.Transform GetParentTransform(int parentId) {
+
+            var root = this.parentParameters.GetRoot(parentId);
+            if (root != null) return root;
+            
+            return this.transform;
+
+        }
+
         void IView.DoInitialize() {
 
             this.InitializeTransform();
@@ -333,8 +556,16 @@ namespace ME.ECS.Views.Providers {
         public virtual void OnDeInitialize() { }
         public virtual void OnDisconnect() { }
         public virtual void ApplyState(float deltaTime, bool immediately) { }
-        public virtual void OnUpdate(float deltaTime) { }
         public virtual void ApplyPhysicsState(float deltaTime) { }
+        
+        void IView.DoUpdate(float deltaTime) {
+
+            this.OnUpdate(deltaTime);
+            this.transform.Update(deltaTime);
+            
+        }
+        
+        public virtual void OnUpdate(float deltaTime) { }
 
         public override string ToString() {
 
@@ -378,6 +609,7 @@ namespace ME.ECS.Views.Providers {
 
             var sourceTyped = (MonoBehaviourView)prefab;
             var view = this.pool.Spawn(sourceTyped, prefabSourceId, sourceTyped.customViewId, in targetEntity);
+            if (view.parentParameters.enabled == true) WorldStaticCallbacks.RaiseCallbackOnViewCreated(in targetEntity, view, view.parentParameters.parentId);
             if (this.world.debugSettings.showViewsOnScene == false || this.world.debugSettings.viewsSettings.unityGameObjectProviderShowOnScene == false) {
 
                 view.gameObject.hideFlags = UnityEngine.HideFlags.HideInHierarchy;
@@ -391,6 +623,7 @@ namespace ME.ECS.Views.Providers {
         public override bool Destroy(ref IView instance) {
 
             var instanceTyped = (MonoBehaviourView)instance;
+            if (instanceTyped.parentParameters.enabled == true) WorldStaticCallbacks.RaiseCallbackOnViewDestroy(instanceTyped.entity, instanceTyped);
             var immediately = this.pool.Recycle(ref instanceTyped, instanceTyped.customViewId, instanceTyped.useCache == true ? instanceTyped.cacheTimeout : 0f);
             instance = null;
             return immediately;

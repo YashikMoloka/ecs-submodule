@@ -102,7 +102,7 @@ namespace ME.ECS.Views {
 
             }
 
-            return this.RegisterViewSource(new UnityParticlesProviderInitializer(), prefab.GetSource(), customId);
+            return this.RegisterViewSource(new UnityParticlesProviderInitializer(), ViewsModule.ViewSourceObject.Create(prefab.GetSource()), customId);
 
         }
 
@@ -347,6 +347,12 @@ namespace ME.ECS.Views.Providers {
         void IView.DoDestroy() {
             
             this.OnDisconnect();
+
+        }
+
+        void IView.DoUpdate(float dt) {
+            
+            this.OnUpdate(dt);
 
         }
 

@@ -18,10 +18,22 @@ namespace ME.ECS {
         }
 
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override long ReadPtr(in Entity entity) {
+            E.IS_NOT_UNMANAGED<TComponent>();
+            return default;
+        }
+
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         public override bool TryRead(in Entity entity, out TComponent component) {
             ref var bucket = ref this.components[entity.id];
             component = bucket.data;
             return bucket.state > 0;
+        }
+
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override ref readonly TComponent Read(in Entity entity) {
+            ref var bucket = ref this.components[entity.id];
+            return ref bucket.data;
         }
 
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]

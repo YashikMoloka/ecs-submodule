@@ -15,7 +15,15 @@ namespace ME.ECS {
 
         protected ref UnmanagedComponentsStorage storage => ref this.world.currentState.structComponents.unmanagedComponentsStorage;
         private ref UnmanagedComponentsStorage.Item<TComponent> registry => ref this.storage.GetRegistry<TComponent>(in this.allocator);
-        
+
+        public override void CopyFrom(StructRegistryBase other) {
+            
+            base.CopyFrom(other);
+            
+            this.storage.ValidateTypeId<TComponent>(ref this.allocator);
+            
+        }
+
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         public override ref byte GetState(in Entity entity) {
 
@@ -30,10 +38,28 @@ namespace ME.ECS {
             
             ref var storage = ref this.storage;
             ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
-            ref var item = ref reg.components.Get(ref this.allocator, entity.id);
+            var item = reg.components.Read(ref this.allocator, entity.id);
             component = item.data;
             return item.state > 0;
             
+        }
+
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override long ReadPtr(in Entity entity) {
+            
+            ref var storage = ref this.storage;
+            ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
+            return reg.components.ReadPtr(in this.allocator, entity.id);
+
+        }
+
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public override ref readonly TComponent Read(in Entity entity) {
+
+            ref var storage = ref this.storage;
+            ref var reg = ref storage.GetRegistry<TComponent>(in this.allocator);
+            ref var item = ref reg.components.Read(ref this.allocator, entity.id);
+            return ref item.data;
         }
 
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -210,7 +236,7 @@ namespace ME.ECS {
         #endif
         public override bool Has(in Entity entity) {
 
-            return this.Get(in entity).state > 0;
+            return this.TryRead(in entity, out var _);
 
         }
 

@@ -223,7 +223,7 @@ namespace ME.ECS {
             var state = Worlds.currentWorld.currentState;
             var arr = state.storage.cache;
             if (this.id >= arr.Length) return false;
-            return arr[in state.allocator, this.id].generation == this.generation;
+            return this.generation > 0 && arr[in state.allocator, this.id].generation == this.generation;
 
         }
 
@@ -231,6 +231,15 @@ namespace ME.ECS {
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
         public static ref Entity Create(string name = null) {
+
+            return ref Worlds.current.AddEntity(name);
+
+        }
+
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        public static ref Entity Create(Unity.Collections.FixedString64Bytes name) {
 
             return ref Worlds.current.AddEntity(name);
 
@@ -257,7 +266,29 @@ namespace ME.ECS {
             this.generation = entity.generation;
 
         }
+        
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        public Entity(Unity.Collections.FixedString64Bytes name) {
 
+            ref var entity = ref Worlds.current.AddEntity(name);
+            this.id = entity.id;
+            this.generation = entity.generation;
+
+        }
+        
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        public Entity(Unity.Collections.FixedString64Bytes name, EntityFlag flags) {
+
+            ref var entity = ref Worlds.current.AddEntity(name, flags);
+            this.id = entity.id;
+            this.generation = entity.generation;
+
+        }
+        
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
@@ -380,6 +411,27 @@ namespace ME.ECS {
             var state = Worlds.currentWorld.currentState;
             return state.storage.versions.Get(in state.allocator, this);
 
+        }
+
+        #if ECS_COMPILE_IL2CPP_OPTIONS
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.DivideByZeroChecks, false)]
+        #endif
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        public void SetDirty() {
+            
+            var state = Worlds.currentWorld.currentState;
+            state.storage.versions.Increment(in state.allocator, this);
+
+        }
+        
+        public void SetDirty(in ME.ECS.Collections.V3.MemoryAllocator allocator) {
+
+            ++allocator.RefArray<ushort>(ComponentTypesRegistry.burstStateVersionsDirectRef.Data, this.id);
+            
         }
 
         public string ToStringNoVersion() {

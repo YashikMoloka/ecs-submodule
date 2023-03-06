@@ -105,7 +105,7 @@ namespace ME.ECS.Views {
 
             }
 
-            return this.RegisterViewSource(new UnityDrawMeshProviderInitializer(), prefab.GetSource(), customId);
+            return this.RegisterViewSource(new UnityDrawMeshProviderInitializer(), ViewSourceObject.Create(prefab.GetSource()), customId);
 
         }
 
@@ -299,6 +299,12 @@ namespace ME.ECS.Views.Providers {
         void IView.DoDestroy() {
 
             this.OnDisconnect();
+
+        }
+
+        void IView.DoUpdate(float dt) {
+            
+            this.OnUpdate(dt);
 
         }
 

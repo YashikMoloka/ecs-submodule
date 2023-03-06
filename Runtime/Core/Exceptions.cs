@@ -115,6 +115,13 @@ namespace ME.ECS {
 
         }
 
+        [System.Diagnostics.Conditional("WORLD_EXCEPTIONS")]
+        public static void IS_NOT_UNMANAGED<TComponent>() where TComponent : struct, IComponentBase {
+            
+            throw new System.Exception($"Component `{typeof(TComponent)}` must be unmanaged");
+            
+        }
+
     }
     
     public class CollectionNotCreated : System.Exception {
@@ -146,6 +153,19 @@ namespace ME.ECS {
         public static void Throw() {
 
             throw new ViewSourceIsNullException("Prefab you want to use is null.");
+
+        }
+        
+    }
+
+    public class ViewProviderNotFound : System.Exception {
+
+        public ViewProviderNotFound() : base("ME.ECS Exception") { }
+        public ViewProviderNotFound(string message) : base(message) { }
+
+        public static void Throw(System.Type viewType) {
+
+            throw new ViewProviderNotFound($"Provider you want to use for type {viewType} was not found.");
 
         }
         

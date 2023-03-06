@@ -126,7 +126,7 @@ namespace ME.ECS {
         public static WorldDebugSettings Default => new WorldDebugSettings() {
             createGameObjectsRepresentation = false,
             collectStatistic = false,
-            showViewsOnScene = false,
+            showViewsOnScene = true,
             viewsSettings = new WorldDebugViewsSettings(),
         };
 
@@ -199,7 +199,7 @@ namespace ME.ECS {
         public MemoryAllocator tempAllocator;
         private State resetState;
         private bool hasResetState;
-        internal State currentState;
+        public State currentState;
         private uint seed;
         private int cpf; // CPF = Calculations per frame
         internal int entitiesCapacity;
@@ -498,21 +498,24 @@ namespace ME.ECS {
             this.isLoaded = false;
             this.loadingProgress = 0f;
 
-            var awaitingCount = 0;
+            var loadableSystems = new System.Collections.Generic.List<ILoadableSystem>();
+
             for (int i = 0; i < this.systemGroupsLength; ++i) {
 
                 var group = this.systemGroups.arr[i];
-                awaitingCount += (group.runtimeSystem.systemLoadable != null ? group.runtimeSystem.systemLoadable.Count : 0);
+                if (group.runtimeSystem.systemLoadable != null) {
+                    loadableSystems.AddRange(group.runtimeSystem.systemLoadable);
+                }
 
             }
 
-            this.LoadSystems(awaitingCount, 0, 0, awaitingCount, onComplete);
+            this.LoadSystems(loadableSystems, loadableSystems.Count, onComplete);
             
         }
 
-        private void LoadSystems(int count, int groupsOffset, int sysOffset, int awaitingCount, System.Action onComplete) {
+        private void LoadSystems(System.Collections.Generic.List<ILoadableSystem> loadableSystems, int loadableSystemsCount, System.Action onComplete) {
 
-            if (awaitingCount == 0) {
+            if (loadableSystems.Count == 0) {
                 
                 this.isLoading = false;
                 this.isLoaded = true;
@@ -520,65 +523,39 @@ namespace ME.ECS {
                 return;
 
             }
-            
-            for (int i = groupsOffset; i < this.systemGroupsLength; ++i) {
 
-                if (this.isActive == false) {
+            foreach (var loadableSystem in loadableSystems) {
+                if (loadableSystem is ILoadableSync) {
+
+                    loadableSystem.Load(() => {
+
+                        loadableSystems.Remove(loadableSystem);
+
+                        this.LoadSystems(loadableSystems, loadableSystemsCount, onComplete);
+                            
+                    });
                     
-                    // Break loading at this point - may be we call Unload world
                     return;
-                    
-                }
-                var group = this.systemGroups.arr[i];
-                if (group.runtimeSystem.systemLoadable == null) continue;
-                for (int j = sysOffset; j < group.runtimeSystem.systemLoadable.Count; ++j) {
 
-                    if (this.isActive == false) {
-                    
-                        // Break loading at this point - may be we call Unload world
-                        return;
-                    
-                    }
-                    
-                    var loadableSystem = group.runtimeSystem.systemLoadable[j];
-                    if (loadableSystem is ILoadableSync) {
+                } else {
 
-                        var groupId = i;
-                        var idx = j + 1;
-                        if (idx >= group.runtimeSystem.systemLoadable.Count) {
+                    loadableSystem.Load(() => {
                             
-                            ++groupId;
-                            idx = 0;
+                        loadableSystems.Remove(loadableSystem);
+                        
+                        this.loadingProgress = 1f - loadableSystems.Count / (float)loadableSystemsCount;
                             
+                        if (loadableSystems.Count == 0) {
+
+                            this.isLoading = false;
+                            this.isLoaded = true;
+                            onComplete.Invoke();
+
                         }
-                        loadableSystem.Load(() => {
-                            
-                            this.LoadSystems(count, groupId, idx, awaitingCount - 1, onComplete);
-                            
-                        });
-                        return;
 
-                    } else {
-
-                        loadableSystem.Load(() => {
-
-                            --awaitingCount;
-                            this.loadingProgress = 1f - awaitingCount / (float)count;
-                            
-                            if (awaitingCount == 0) {
-
-                                this.isLoading = false;
-                                this.isLoaded = true;
-                                onComplete.Invoke();
-
-                            }
-
-                        });
-
-                    }
+                    });
 
                 }
-
             }
 
         }
@@ -1242,7 +1219,7 @@ namespace ME.ECS {
             Entity maxEntity = default;
             for (int i = 0; i < capacity - curCap; ++i) {
 
-                var e = this.AddEntity_INTERNAL(validate: false);
+                var e = this.AddEntity_INTERNAL(default, validate: false);
                 this.RemoveEntity(in e, false);
                 if (e.id > maxEntity.id) maxEntity = e;
 
@@ -1256,13 +1233,21 @@ namespace ME.ECS {
 
         }
 
-        public ref Entity AddEntity(string name = null, EntityFlag flags = EntityFlag.None) {
+        public ref Entity AddEntity(Unity.Collections.FixedString64Bytes name, EntityFlag flags = EntityFlag.None) {
 
             return ref this.AddEntity_INTERNAL(name, flags: flags);
 
         }
         
-        private ref Entity AddEntity_INTERNAL(string name = null, bool validate = true, EntityFlag flags = EntityFlag.None) {
+        public ref Entity AddEntity(string name = null, EntityFlag flags = EntityFlag.None) {
+
+            var maxLength = Unity.Collections.FixedString64Bytes.UTF8MaxLengthInBytes / sizeof(char);
+            var nameBytes = name != null ? new Unity.Collections.FixedString64Bytes(name.Length > maxLength ? name.Substring(0, maxLength) : name) : default;
+            return ref this.AddEntity_INTERNAL(nameBytes, flags: flags);
+
+        }
+        
+        private ref Entity AddEntity_INTERNAL(Unity.Collections.FixedString64Bytes name, bool validate = true, EntityFlag flags = EntityFlag.None) {
             
             E.IS_LOGIC_STEP(this);
             E.IS_WORLD_THREAD();
@@ -1271,7 +1256,7 @@ namespace ME.ECS {
             ref var entity = ref this.currentState.storage.Alloc(ref this.currentState.allocator);
             if (validate == true) this.UpdateEntityOnCreate(in entity, isNew);
             
-            if (name != null) {
+            if (name.IsEmpty == false) {
 
                 entity.Set(new ME.ECS.Name.Name() {
                     value = name,
@@ -1495,6 +1480,18 @@ namespace ME.ECS {
             }
 
             return default;
+
+        }
+        
+        public System.Collections.Generic.List<TFeature> GetFeatures<TFeature>(System.Collections.Generic.List<TFeature> output) where TFeature : IFeatureBase {
+
+            output.Clear();
+            
+            foreach (var kv in this.features) {
+                if (kv.Value is TFeature featureBase) output.Add(featureBase);;
+            }
+
+            return output;
 
         }
 
@@ -2016,10 +2013,7 @@ namespace ME.ECS {
             this.currentStep |= WorldStep.PluginsLogicTick;
             ////////////////
             {
-                
-                // Pick random number
-                this.GetRandomValue();
-
+            
                 using (new Checkpoint("UseLifetimeStep NotifyAllSystems")) {
 
                     this.UseLifetimeStep(ComponentLifetime.NotifyAllSystems, fixedDeltaTime);
@@ -2040,6 +2034,9 @@ namespace ME.ECS {
 
                 }
                 
+                // Pick random number
+                this.GetRandomValue();
+
             }
             ////////////////
             this.currentStep &= ~WorldStep.PluginsLogicTick;
@@ -2207,7 +2204,7 @@ namespace ME.ECS {
         /// <param name="from">Source tick</param>
         /// <param name="to">Target tick</param>
         /// <returns>New target tick</returns>
-        /// <exception cref="Exception">Failed if frame fix behaviour is FrameFixBehaviour.ExceptionOverTicksPreFrame and </exception>
+        /// <exception cref="System.Exception">Failed if frame fix behaviour is FrameFixBehaviour.ExceptionOverTicksPreFrame and </exception>
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif

@@ -5,12 +5,15 @@
   * Modules support and Static API added
   * ConfigId<>, ViewId<> structs added to use with blittable components
   * Deprecated methods and modules removed
+  * ViewsModule: RegisterViewSource are now with async support
+  * [fix] Collections: ReplaceWith/CopyFrom methods fix with GetMemPtr calls on null collections
 * Tests:
   * New memory allocator collections tests implemented
   * Major refactoring iteration
 
 19/09/2022
 # Version 2.8
+* Runtime.Core: World::AddEntity() sub string to 64 bytes of length and additional method added
 * Runtime.Modules: RegisterViewSource now provide optional customId
 * Serializer: Threaded option added
 * Runtime.Core:

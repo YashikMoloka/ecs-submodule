@@ -163,7 +163,7 @@ namespace ME.ECS {
         public ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab, ViewId customId) where TProvider : struct, IViewsProviderInitializer {
 
             var viewsModule = this.GetModule<ViewsModule>();
-            return viewsModule.RegisterViewSource(providerInitializer, prefab, customId);
+            return viewsModule.RegisterViewSource(providerInitializer, ViewsModule.ViewSourceObject.Create(prefab), customId);
 
         }
 
@@ -341,7 +341,7 @@ namespace ME.ECS.Views {
         void DoDestroy();
         void ApplyState(float deltaTime, bool immediately);
         void ApplyPhysicsState(float deltaTime);
-        void OnUpdate(float deltaTime);
+        void DoUpdate(float deltaTime);
 
         void UpdateParticlesSimulation(float deltaTime);
         void SimulateParticles(float time, uint seed);
@@ -365,7 +365,7 @@ namespace ME.ECS.Views {
         void Register(IView instance, ViewInfo viewInfo);
         bool UnRegister(IView instance);
 
-        ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab, ViewId customId) where TProvider : struct, IViewsProviderInitializer;
+        ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, ViewsModule.ViewSourceObject viewSourceObject, ViewId customId) where TProvider : struct, IViewsProviderInitializer;
         bool UnRegisterViewSource(IView prefab);
 
         void AssignView(IView prefab, in Entity entity, DestroyViewBehaviour destroyViewBehaviour = DestroyViewBehaviour.DestroyWithEntity);
@@ -373,6 +373,8 @@ namespace ME.ECS.Views {
         void InstantiateView(IView prefab, in Entity entity);
         void InstantiateView(ViewId prefabSourceId, in Entity entity);
         void DestroyView(ref IView instance);
+
+        IView GetViewByEntity(in Entity entity);
 
     }
 
@@ -577,9 +579,12 @@ namespace ME.ECS.Views {
         private Dictionary<System.Type, ProviderInfo> registryTypeToProviderInfo;
         private Dictionary<IView, ViewId> registryPrefabToId;
         private Dictionary<ViewId, IView> registryIdToPrefab;
+        private Dictionary<ViewSourceObject, ViewId> registryLoadingAwaitSourceToId;
+        private Dictionary<ViewId, ViewSourceObject> registryLoadingAwaitIdToSource;
         private ViewId viewSourceIdRegistry;
         private bool isRequestsDirty;
         private bool forceUpdateState;
+        private Tick previousTick;
 
         public World world { get; set; }
 
@@ -590,12 +595,16 @@ namespace ME.ECS.Views {
             this.forceUpdateState = false;
             this.list = PoolArray<Views>.Spawn(ViewsModule.VIEWS_CAPACITY);
             this.rendering = PoolHashSet<ViewInfo>.Spawn(ViewsModule.VIEWS_CAPACITY);
+            this.registryLoadingAwaitSourceToId = PoolDictionary<ViewSourceObject, ViewId>.Spawn(ViewsModule.REGISTRY_CAPACITY);
+            this.registryLoadingAwaitIdToSource = PoolDictionary<ViewId, ViewSourceObject>.Spawn(ViewsModule.REGISTRY_CAPACITY);
             this.registryPrefabToId = PoolDictionary<IView, ViewId>.Spawn(ViewsModule.REGISTRY_CAPACITY);
             this.registryIdToPrefab = PoolDictionary<ViewId, IView>.Spawn(ViewsModule.REGISTRY_CAPACITY);
             this.registryTypeToProviderInfo = PoolDictionary<System.Type, ProviderInfo>.Spawn(ViewsModule.REGISTRY_CAPACITY);
 
             this.registryPrefabToProvider = PoolDictionary<ViewId, IViewsProvider>.Spawn(ViewsModule.REGISTRY_PROVIDERS_CAPACITY);
             this.registryPrefabToProviderInitializer = PoolDictionary<ViewId, IViewsProviderInitializerBase>.Spawn(ViewsModule.REGISTRY_PROVIDERS_CAPACITY);
+            
+            this.previousTick = Tick.Zero;
 
             WorldUtilities.SetAllComponentInHash<ViewComponent>(false);
 
@@ -642,6 +651,16 @@ namespace ME.ECS.Views {
             PoolArray<Views>.Recycle(ref this.list);
 
             this.viewSourceIdRegistry = default;
+            
+            this.previousTick = Tick.Zero;
+
+        }
+        
+        IView IViewModule.GetViewByEntity(in Entity entity) {
+
+            var id = entity.id;
+            if (id < 0 || id >= this.list.Length) return null;
+            return this.list.arr[id].mainView;
 
         }
 
@@ -1023,32 +1042,110 @@ namespace ME.ECS.Views {
 
         }
 
-        public ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, IView prefab, ViewId customId) where TProvider : struct, IViewsProviderInitializer {
+        public struct ViewSourceObject : System.IEquatable<ViewSourceObject> {
 
-            if (prefab == null) {
+            private IView view;
+            private System.Collections.IEnumerator op;
+
+            public static ViewSourceObject Create(IView view) {
+                
+                return new ViewSourceObject() {
+                    view = view,
+                };
+                
+            }
+
+            public static ViewSourceObject Create(System.Collections.IEnumerator op) {
+                
+                return new ViewSourceObject() {
+                    op = op,
+                };
+                
+            }
+
+            public IView GetResult() => this.view;
+
+            public bool IsDone() {
+                
+                this.Validate();
+                return this.view != null || this.op == null || this.op.MoveNext() == false;
+                
+            }
+            public bool IsValid() => this.view != null || this.op != null;
+
+            private void Validate() {
+
+                if (this.view != null) return;
+                if (this.op != null && this.IsDone() == true) {
+
+                    this.view = (IView)this.op.Current;
+                    this.op = null;
+                    
+                }
+                
+            }
+
+            public override int GetHashCode() {
+
+                if (this.IsValid() == false) return 0;
+                return this.view != null ? this.view.GetHashCode() : this.op.GetHashCode();
+                
+            }
+            
+            public bool Equals(ViewSourceObject other) {
+                return Equals(this.view, other.view) && Equals(this.op, other.op);
+            }
+
+        }
+
+        public ViewId RegisterViewSource<TProvider>(TProvider providerInitializer, ViewSourceObject prefabSource, ViewId customId) where TProvider : struct, IViewsProviderInitializer {
+
+            if (prefabSource.IsValid() == false) {
 
                 ViewSourceIsNullException.Throw();
 
             }
 
-            if (this.registryPrefabToId.TryGetValue(prefab, out var viewId) == true) {
+            if (prefabSource.IsDone() == true) {
 
-                return viewId;
+                // Prefab is ready to use (already loaded)
+                // so we can use prefab as IView to register
+                var prefab = prefabSource.GetResult();
+                if (this.registryPrefabToId.TryGetValue(prefab, out var viewId) == true) {
 
+                    return viewId;
+
+                }
+
+                #if VIEWS_REGISTER_VIEW_SOURCE_CHECK_STATE
+                E.IS_NOT_LOGIC_STEP(this.world);
+                #endif
+
+                this.RegisterViewSource_INTERNAL(providerInitializer, customId);
+                this.registryPrefabToId.Add(prefab, this.viewSourceIdRegistry);
+                this.registryIdToPrefab.Add(this.viewSourceIdRegistry, prefab);
+
+            } else {
+                
+                // Prefab was not loaded yet
+                // We need to register handler for now
+                // And wait until it will be done
+                if (this.registryLoadingAwaitSourceToId.TryGetValue(prefabSource, out var viewId) == true) {
+
+                    return viewId;
+
+                }
+                
+                #if VIEWS_REGISTER_VIEW_SOURCE_CHECK_STATE
+                E.IS_NOT_LOGIC_STEP(this.world);
+                #endif
+
+                this.RegisterViewSource_INTERNAL(providerInitializer, customId);
+                this.registryLoadingAwaitSourceToId.Add(prefabSource, this.viewSourceIdRegistry);
+                this.registryLoadingAwaitIdToSource.Add(this.viewSourceIdRegistry, prefabSource);
+                
             }
-
-            #if VIEWS_REGISTER_VIEW_SOURCE_CHECK_STATE
-            if (this.world.HasStep(WorldStep.LogicTick) == true) {
-
-                throw new InStateException();
-
-            }
-            #endif
-
-            this.RegisterViewSource_INTERNAL(providerInitializer, customId);
-            this.registryPrefabToId.Add(prefab, this.viewSourceIdRegistry);
-            this.registryIdToPrefab.Add(this.viewSourceIdRegistry, prefab);
-
+            
             return this.viewSourceIdRegistry;
 
         }
@@ -1058,15 +1155,12 @@ namespace ME.ECS.Views {
             if (prefab == null) {
 
                 ViewSourceIsNullException.Throw();
+                return false;
 
             }
 
-            if (this.world.isActive == true && this.world.HasStep(WorldStep.LogicTick) == true) {
-
-                throw new InStateException();
-
-            }
-
+            E.IS_LOGIC_STEP(this.world);
+            
             if (this.registryPrefabToId.TryGetValue(prefab, out var viewId) == true) {
 
                 this.registryPrefabToProviderInitializer.Remove(viewId);
@@ -1248,7 +1342,6 @@ namespace ME.ECS.Views {
             }
             
             var allEntities = this.world.GetAliveEntities();
-            ref var allocator = ref this.world.currentState.allocator;
             if (allEntities.isCreated == true) {
                 
                 for (int j = 0; j < allEntities.Count; ++j) {
@@ -1266,6 +1359,32 @@ namespace ME.ECS.Views {
                         } else {
 
                             // is not rendering now
+
+                            if (this.registryLoadingAwaitIdToSource.TryGetValue(view.viewInfo.prefabSourceId, out var prefabSource) == true) {
+
+                                if (prefabSource.IsDone() == false) {
+                                    
+                                    // Source is not loaded yet
+                                    // Set requests as dirty
+                                    this.isRequestsDirty = true;
+                                    continue;
+
+                                } else {
+                                    
+                                    // Source is just loaded
+                                    
+                                    // Add to registry
+                                    this.registryIdToPrefab.Add(view.viewInfo.prefabSourceId, prefabSource.GetResult());
+                                    this.registryPrefabToId.Add(prefabSource.GetResult(), view.viewInfo.prefabSourceId);
+                                    
+                                    // Remove from loading
+                                    this.registryLoadingAwaitIdToSource.Remove(view.viewInfo.prefabSourceId);
+                                    this.registryLoadingAwaitSourceToId.Remove(prefabSource);
+
+                                }
+                                
+                            }
+                            
                             // create required instance
                             this.CreateVisualInstance(view.seed, in view.viewInfo);
                             hasChanged = true;
@@ -1300,7 +1419,11 @@ namespace ME.ECS.Views {
         public void UpdatePost(in float deltaTime) {
 
             if (this.world.settings.turnOffViews == true) return;
-            if (this.world.IsReverting() == true) return;
+            //if (this.world.IsReverting() == true) return;
+
+            var currentTick = this.world.GetCurrentTick();
+            if (this.previousTick > currentTick) return;
+            this.previousTick = currentTick;
 
             var hasChanged = this.UpdateRequests();
             if (this.world.currentState != null) {
@@ -1320,7 +1443,7 @@ namespace ME.ECS.Views {
 
                     }
 
-                    currentViewInstance.OnUpdate(deltaTime);
+                    currentViewInstance.DoUpdate(deltaTime);
                     // currentViewInstance.UpdateParticlesSimulation(deltaTime);
 
                 }

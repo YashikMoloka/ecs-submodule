@@ -98,7 +98,7 @@ namespace ME.ECS.Collections.MemoryAllocator {
         [INLINE(256)]
         public void ReplaceWith(ref MemoryAllocator allocator, in List<T> other) {
             
-            if (other.GetMemPtr(in allocator) == this.GetMemPtr(in allocator)) {
+            if (other.arr.arrPtr == this.arr.arrPtr) {
                 return;
             }
             
@@ -110,7 +110,7 @@ namespace ME.ECS.Collections.MemoryAllocator {
         [INLINE(256)]
         public void CopyFrom(ref MemoryAllocator allocator, in List<T> other) {
 
-            if (other.GetMemPtr(in allocator) == this.GetMemPtr(in allocator)) return;
+            if (other.arr.arrPtr == this.arr.arrPtr) return;
             if (this.arr.arrPtr == 0L && other.arr.arrPtr == 0L) return;
             if (this.arr.arrPtr != 0L && other.arr.arrPtr == 0L) {
                 this.Dispose(ref allocator);
@@ -247,6 +247,25 @@ namespace ME.ECS.Collections.MemoryAllocator {
         }
 
         [INLINE(256)]
+        public bool RemoveFast<U>(ref MemoryAllocator allocator, U obj) where U : unmanaged, System.IEquatable<T> {
+
+            E.IS_CREATED(this);
+            for (int i = 0, cnt = this.Count; i < cnt; ++i) {
+
+                if (obj.Equals(this.arr[in allocator, i]) == true) {
+
+                    this.RemoveAtFast(ref allocator, i);
+                    return true;
+
+                }
+
+            }
+
+            return false;
+
+        }
+
+        [INLINE(256)]
         public unsafe bool RemoveAt(ref MemoryAllocator allocator, int index) {
             
             E.IS_CREATED(this);
@@ -262,7 +281,7 @@ namespace ME.ECS.Collections.MemoryAllocator {
             
             var ptr = this.arr.arrPtr;
             var size = sizeof(T);
-            allocator.MemCopy(ptr, size * index, ptr, size * (index + 1), (this.Count - index - 1) * size);
+            allocator.MemMove(ptr, size * index, ptr, size * (index + 1), (this.Count - index - 1) * size);
             
             --this.Count;
             this.arr[in allocator, this.Count] = default;
@@ -334,12 +353,12 @@ namespace ME.ECS.Collections.MemoryAllocator {
                 this.EnsureCapacity(ref allocator, this.Count + count);
                 var size = sizeof(T);
                 if (index < this.Count) {
-                    allocator.MemCopy(this.arr.arrPtr, (index + count) * size, this.arr.arrPtr, index * size, (this.Count - index) * size);
+                    allocator.MemMove(this.arr.arrPtr, (index + count) * size, this.arr.arrPtr, index * size, (this.Count - index) * size);
                 }
 
                 if (this.arr.arrPtr == collection.arr.arrPtr) {
-                    allocator.MemCopy(this.arr.arrPtr, index * size, this.arr.arrPtr, 0, index * size);
-                    allocator.MemCopy(this.arr.arrPtr, (index * 2) * size, this.arr.arrPtr, (index + count) * size, (this.Count - index) * size);
+                    allocator.MemMove(this.arr.arrPtr, index * size, this.arr.arrPtr, 0, index * size);
+                    allocator.MemMove(this.arr.arrPtr, (index * 2) * size, this.arr.arrPtr, (index + count) * size, (this.Count - index) * size);
                 } else {
                     collection.CopyTo(ref allocator, this.arr, index);
                 }
@@ -347,6 +366,34 @@ namespace ME.ECS.Collections.MemoryAllocator {
                 this.Count += count;
             }
             
+        }
+
+        [INLINE(256)]
+        public unsafe void AddRange(ref MemoryAllocator allocator, MemArrayAllocator<T> collection) {
+
+            E.IS_CREATED(this);
+            var index = this.Count;
+            if (collection.isCreated == false)
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.collection);
+            if ((uint) index > (uint)this.Count)
+                throw new System.IndexOutOfRangeException();
+            int count = collection.Length;
+            if (count > 0) {
+                this.EnsureCapacity(ref allocator, this.Count + count);
+                var size = sizeof(T);
+                if (index < this.Count) {
+                    allocator.MemMove(this.arr.arrPtr, (index + count) * size, this.arr.arrPtr, index * size, (this.Count - index) * size);
+                }
+
+                if (this.arr.arrPtr == collection.arrPtr) {
+                    allocator.MemMove(this.arr.arrPtr, index * size, this.arr.arrPtr, 0, index * size);
+                    allocator.MemMove(this.arr.arrPtr, (index * 2) * size, this.arr.arrPtr, (index + count) * size, (this.Count - index) * size);
+                } else {
+                    CopyFrom(ref allocator, collection, index);
+                }
+
+                this.Count += count;
+            }
         }
 
         [INLINE(256)]
@@ -360,6 +407,19 @@ namespace ME.ECS.Collections.MemoryAllocator {
             var size = sizeof(T);
             allocator.MemCopy(arr.arrPtr, index * size, this.arr.arrPtr, 0, this.Count * size);
             
+        }
+
+        [INLINE(256)]
+        public readonly unsafe void CopyFrom(ref MemoryAllocator allocator, MemArrayAllocator<T> arr, int index) {
+
+            E.IS_CREATED(this);
+            if (arr.isCreated == false) {
+                ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_RankMultiDimNotSupported);
+            }
+
+            var size = sizeof(T);
+            allocator.MemCopy(this.arr.arrPtr, index * size, arr.arrPtr, 0, arr.Length * size);
+
         }
         
     }
