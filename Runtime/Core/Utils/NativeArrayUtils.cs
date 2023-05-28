@@ -26,7 +26,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static unsafe void Clear<T>(Unity.Collections.NativeHashSet<T> arr) where T : unmanaged, System.IEquatable<T> {
+        public static unsafe void Clear<T>(Unity.Collections.NativeParallelHashSet<T> arr) where T : unmanaged, System.IEquatable<T> {
 
             arr.Clear();
             
@@ -85,7 +85,7 @@ namespace ME.ECS {
 
         }
 
-        public static bool Resize<T>(int index, ref Unity.Collections.NativeHashSet<T> arr, Unity.Collections.Allocator allocator = Unity.Collections.Allocator.Persistent, bool resizeWithOffset = false) where T : unmanaged, System.IEquatable<T> {
+        public static bool Resize<T>(int index, ref Unity.Collections.NativeParallelHashSet<T> arr, Unity.Collections.Allocator allocator = Unity.Collections.Allocator.Persistent, bool resizeWithOffset = false) where T : unmanaged, System.IEquatable<T> {
             
             int offset = 1;
             if (resizeWithOffset == true) {
@@ -95,7 +95,7 @@ namespace ME.ECS {
             }
 
             var capacity = index * offset + 1;
-            if (arr.IsCreated == false) arr = new Unity.Collections.NativeHashSet<T>(capacity, allocator);
+            if (arr.IsCreated == false) arr = new Unity.Collections.NativeParallelHashSet<T>(capacity, allocator);
             if (capacity > arr.Capacity) {
                 
                 arr.Capacity = capacity;
@@ -237,7 +237,7 @@ namespace ME.ECS {
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
-        public static void Copy<T>(in Unity.Collections.NativeHashSet<T> fromArr, ref Unity.Collections.NativeHashSet<T> arr) where T : unmanaged, System.IEquatable<T> {
+        public static void Copy<T>(in Unity.Collections.NativeParallelHashSet<T> fromArr, ref Unity.Collections.NativeParallelHashSet<T> arr) where T : unmanaged, System.IEquatable<T> {
 
             switch (fromArr.IsCreated) {
                 case false when arr.IsCreated == false:
@@ -252,7 +252,7 @@ namespace ME.ECS {
             if (arr.IsCreated == false || arr.Count() != fromArr.Count()) {
 
                 if (arr.IsCreated == true) arr.Dispose();
-                arr = new Unity.Collections.NativeHashSet<T>(fromArr.Count(), Unity.Collections.Allocator.Persistent);
+                arr = new Unity.Collections.NativeParallelHashSet<T>(fromArr.Count(), Unity.Collections.Allocator.Persistent);
                 
             }
             

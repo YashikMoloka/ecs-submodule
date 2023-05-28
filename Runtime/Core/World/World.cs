@@ -2013,12 +2013,6 @@ namespace ME.ECS {
             this.currentStep |= WorldStep.PluginsLogicTick;
             ////////////////
             {
-            
-                using (new Checkpoint("UseLifetimeStep NotifyAllSystems")) {
-
-                    this.UseLifetimeStep(ComponentLifetime.NotifyAllSystems, fixedDeltaTime);
-                    
-                }
 
                 try {
 
@@ -2032,6 +2026,13 @@ namespace ME.ECS {
 
                     UnityEngine.Debug.LogException(ex);
 
+                }
+                
+                // на всякий случай, вроде бы эта бяка меняет стейт
+                using (new Checkpoint("UseLifetimeStep NotifyAllSystems")) {
+
+                    this.UseLifetimeStep(ComponentLifetime.NotifyAllSystems, fixedDeltaTime);
+                    
                 }
                 
                 // Pick random number
