@@ -48,17 +48,6 @@ namespace ME.ECS {
 
         }
 
-        #if !COMPONENTS_VERSION_NO_STATE_DISABLED
-        #if INLINE_METHODS
-        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        #endif
-        public static uint GetDataVersionNoState<TComponent>(this in Entity entity) where TComponent : struct, IVersionedNoState {
-
-            return Worlds.currentWorld.GetDataVersionNoState<TComponent>(in entity);
-
-        }
-        #endif
-
         #if INLINE_METHODS
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         #endif
@@ -428,7 +417,7 @@ namespace ME.ECS {
 
         }
         
-        public void SetDirty(in ME.ECS.Collections.V3.MemoryAllocator allocator) {
+        public void SetDirty(in ME.ECS.Collections.LowLevel.Unsafe.MemoryAllocator allocator) {
 
             ++allocator.RefArray<ushort>(ComponentTypesRegistry.burstStateVersionsDirectRef.Data, this.id);
             

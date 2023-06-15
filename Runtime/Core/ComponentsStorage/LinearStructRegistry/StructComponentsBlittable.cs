@@ -23,7 +23,7 @@ namespace ME.ECS {
         }
 
         [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        public override long ReadPtr(in Entity entity) {
+        public override ME.ECS.Collections.LowLevel.Unsafe.MemPtr ReadPtr(in Entity entity) {
             E.IS_NOT_UNMANAGED<TComponent>();
             return default;
         }
@@ -92,7 +92,7 @@ namespace ME.ECS {
             if (AllComponentTypes<TComponent>.isVersioned == true) {
                 var v = (long)this.world.GetCurrentTick();
                 ref var data = ref this.components[entity.id];
-                data.version = v;
+                data.version = (ushort)v;
             }
 
         }
@@ -103,7 +103,7 @@ namespace ME.ECS {
         public override void UpdateVersion(ref Component<TComponent> bucket) {
 
             if (AllComponentTypes<TComponent>.isVersioned == true) {
-                bucket.version = this.world.GetCurrentTick();
+                bucket.version = (ushort)(long)this.world.GetCurrentTick();
             }
 
         }

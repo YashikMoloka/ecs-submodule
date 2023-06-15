@@ -1,11 +1,9 @@
-using ME.ECS.Collections.V3;
+using ME.ECS.Collections.LowLevel.Unsafe;
 using Unity.Collections.LowLevel.Unsafe;
 
 namespace ME.ECS {
-    
-    using MemPtr = System.Int64;
 
-    public unsafe struct UnsafeData : ME.ECS.Collections.MemoryAllocator.IEquatableAllocator<UnsafeData> {
+    public unsafe struct UnsafeData : ME.ECS.Collections.LowLevel.IEquatableAllocator<UnsafeData> {
 
         public static System.Reflection.MethodInfo setMethodInfo = typeof(UnsafeData)
                                                                    .GetMethod("Set", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
@@ -31,7 +29,7 @@ namespace ME.ECS {
 
             this.typeId = AllComponentTypes<T>.typeId;
 
-            if (this.data != 0) allocator.Free(this.data);
+            if (this.data != MemPtr.Null) allocator.Free(this.data);
             
             this.sizeOf = UnsafeUtility.SizeOf<T>();
             this.alignOf = UnsafeUtility.AlignOf<T>();
@@ -65,7 +63,7 @@ namespace ME.ECS {
         #endif
         public void Dispose(ref MemoryAllocator allocator) {
 
-            if (this.data != 0) allocator.Free(this.data);
+            if (this.data != MemPtr.Null) allocator.Free(this.data);
             this = default;
             
         }
