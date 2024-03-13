@@ -1,3 +1,5 @@
+using Unity.Collections.LowLevel.Unsafe;
+
 namespace ME.ECS.Collections.LowLevel {
 
     using ME.ECS.Collections.LowLevel.Unsafe;
@@ -193,7 +195,7 @@ namespace ME.ECS.Collections.LowLevel {
 
             E.IS_CREATED(this);
             capacity = Helpers.NextPot(capacity);
-            return this.arr.Resize(ref allocator, capacity, ClearOptions.UninitializedMemory);
+            return this.arr.Resize(ref allocator, capacity, ClearOptions.ClearMemory);
             
         }
         
@@ -339,6 +341,30 @@ namespace ME.ECS.Collections.LowLevel {
         }
 
         [INLINE(256)]
+        public unsafe void AddRange(ref MemoryAllocator allocator, Unity.Collections.NativeArray<T> collection) {
+
+            E.IS_CREATED(this);
+            var index = this.Count;
+            if (collection.IsCreated == false)
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.collection);
+            if ((uint) index > (uint)this.Count)
+                throw new System.IndexOutOfRangeException();
+            int count = collection.Length;
+            if (count > 0) {
+                this.EnsureCapacity(ref allocator, this.Count + count);
+                var size = sizeof(T);
+                if (index < this.Count) {
+                    allocator.MemMove(this.arr.arrPtr, (index + count) * size, this.arr.arrPtr, index * size, (this.Count - index) * size);
+                }
+
+                Unity.Collections.LowLevel.Unsafe.UnsafeUtility.MemMove(allocator.GetUnsafePtr(this.arr.arrPtr), collection.GetUnsafePtr(), this.Count * size);
+                
+                this.Count += count;
+            }
+            
+        }
+
+        [INLINE(256)]
         public unsafe void AddRange(ref MemoryAllocator allocator, List<T> collection) {
 
             E.IS_CREATED(this);
@@ -404,7 +430,7 @@ namespace ME.ECS.Collections.LowLevel {
             }
 
             var size = sizeof(T);
-            allocator.MemCopy(arr.arrPtr, index * size, this.arr.arrPtr, 0, this.Count * size);
+            allocator.MemMove(arr.arrPtr, index * size, this.arr.arrPtr, 0, this.Count * size);
             
         }
 
@@ -417,7 +443,7 @@ namespace ME.ECS.Collections.LowLevel {
             }
 
             var size = sizeof(T);
-            allocator.MemCopy(this.arr.arrPtr, index * size, arr.arrPtr, 0, arr.Length * size);
+            allocator.MemMove(this.arr.arrPtr, index * size, arr.arrPtr, 0, arr.Length * size);
 
         }
         

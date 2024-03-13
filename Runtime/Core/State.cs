@@ -21,6 +21,8 @@ namespace ME.ECS {
         public StructComponentsContainer structComponents;
 
         public PluginsStorage pluginsStorage;
+
+        public int localVersion = 1;
         
         /// <summary>
         /// Return most unique hash
@@ -29,6 +31,12 @@ namespace ME.ECS {
         public virtual int GetHash() {
 
             return this.tick ^ this.structComponents.GetHash() ^ this.randomState.GetHashCode() ^ this.storage.GetHash(ref this.allocator);
+
+        }
+
+        public virtual string GetHashString() {
+
+            return $"{this.tick}.{this.structComponents.GetHash()}.{this.randomState.GetHashCode()}.{this.storage.GetHash(ref this.allocator)}";
 
         }
 
@@ -41,7 +49,7 @@ namespace ME.ECS {
             world.Register(ref this.allocator, ref this.structComponents, freeze, restore);
             
             this.pluginsStorage.Initialize(ref this.allocator);
-            
+
             ComponentTypesRegistry.burstStateVersionsDirectRef.Data = this.storage.versions.GetMemPtr();
             
         }
@@ -61,6 +69,8 @@ namespace ME.ECS {
 
             ComponentTypesRegistry.burstStateVersionsDirectRef.Data = this.storage.versions.GetMemPtr();
 
+            ++this.localVersion;
+
         }
 
         public virtual void OnRecycle() {
@@ -73,6 +83,8 @@ namespace ME.ECS {
             this.storage = default;
             
             this.structComponents.OnRecycle(ref this.allocator, true);
+
+            this.localVersion = default;
             
             this.allocator.Dispose();
 

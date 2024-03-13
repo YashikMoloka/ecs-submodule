@@ -218,6 +218,8 @@ namespace ME.ECS.StatesHistory {
         void BeginAddEvents();
         void EndAddEvents();
 
+        void InvalidateEntriesAfterTick(Tick tick);
+        
         void HardResetTo(Tick tick);
 
         void GetResultEntries(List<ME.ECS.Network.ResultEntry<State>> states);
@@ -261,7 +263,6 @@ namespace ME.ECS.StatesHistory {
         public void GetResultEntries(List<ME.ECS.Network.ResultEntry<TState>> states);
 
         Tick GetAndResetOldestTick(Tick tick);
-        void InvalidateEntriesAfterTick(Tick tick);
         void SetLastSavedTick(Tick tick);
         
         Tick GetTickByTime(double seconds);
@@ -300,6 +301,8 @@ namespace ME.ECS.StatesHistory {
         
         private IEventRunner eventRunner;
         public World world { get; set; }
+
+        public System.Action<Tick> onRemoteHashFail;
         
         public virtual void OnConstruct() {
 
@@ -407,9 +410,9 @@ namespace ME.ECS.StatesHistory {
 
         }
         
-        public Tick GetCacheSize() {
+        public virtual Tick GetCacheSize() {
 
-            return this.GetQueueCapacity() * this.GetTicksPerState();
+            return this.GetQueueCapacity() * this.GetTicksPerState() * 4;
 
         }
 
@@ -843,6 +846,8 @@ namespace ME.ECS.StatesHistory {
                     
                             var orderId = kv.Key;
                             using (NoStackTrace.All) {
+                                
+                                this.onRemoteHashFail?.Invoke(tick);
                             
                                 UnityEngine.Debug.LogError($"[World #{this.world.id}] Remote Hash (Client Id: {orderId}): {tick}:{remoteHash}, Local Hash: {tick}:{hash}");
                                 this.CleanUpHashTable(currentTick);
@@ -868,7 +873,7 @@ namespace ME.ECS.StatesHistory {
 
         }
 
-        public void InvalidateEntriesAfterTick(Tick tick) {
+        public virtual void InvalidateEntriesAfterTick(Tick tick) {
             
             this.statesHistory.InvalidateEntriesAfterTick(tick);
             this.SetLastSavedTick(tick);
@@ -887,7 +892,7 @@ namespace ME.ECS.StatesHistory {
 
         }
 
-        public State GetStateBeforeTick(Tick tick) {
+        public virtual State GetStateBeforeTick(Tick tick) {
 
             this.ValidatePrewarm();
 
@@ -901,7 +906,7 @@ namespace ME.ECS.StatesHistory {
 
         }
 
-        public TState GetStateBeforeTick(Tick tick, out Tick targetTick, bool lookupAll = false) {
+        public virtual TState GetStateBeforeTick(Tick tick, out Tick targetTick, bool lookupAll = false) {
 
             this.ValidatePrewarm();
 
@@ -953,7 +958,7 @@ namespace ME.ECS.StatesHistory {
 
         }
 
-        public void PlayEventsForTickPre(Tick tick) {
+        public virtual void PlayEventsForTickPre(Tick tick) {
             
             if (tick > this.lastSavedStateTick && tick > Tick.Zero && tick % this.GetTicksPerState() == 0L) {
 
@@ -1084,6 +1089,11 @@ namespace ME.ECS.StatesHistory {
     
                         module.syncedTick = overwritedStateTick;
                         module.syncHash = overwritedStateHash;
+                        
+#if NETWORK_SYNC_QUEUE_SUPPORT
+                        module.syncedTickQueue.Enqueue(overwritedStateTick);
+                        module.syncHashQueue.Enqueue(overwritedStateHash);
+#endif
     
                     }
 

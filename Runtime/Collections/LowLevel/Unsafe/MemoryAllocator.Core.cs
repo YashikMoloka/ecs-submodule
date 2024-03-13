@@ -1,12 +1,22 @@
 //#define MEMORY_ALLOCATOR_BOUNDS_CHECK
 
 using System;
+using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using INLINE = System.Runtime.CompilerServices.MethodImplAttribute;
 using BURST = Unity.Burst.BurstCompileAttribute;
 
 namespace ME.ECS.Collections.LowLevel.Unsafe {
+
+    public static unsafe class MemBlockOffsetExt {
+
+        [INLINE(256)]
+        public static MemoryAllocator.MemBlock* Ptr(this ref MemoryAllocator.MemBlockOffset block, void* zone) {
+            return (MemoryAllocator.MemBlock*)((byte*)zone + block.value);
+        }
+
+    }
 
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
     [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
@@ -21,8 +31,8 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         
         private const byte BLOCK_STATE_FREE = 0;
         private const byte BLOCK_STATE_USED = 1;
-        
 
+        [StructLayout(LayoutKind.Sequential)]
         public struct MemZone {
 
             public int size;           // total bytes malloced, including header
@@ -31,6 +41,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
 
         }
 
+        [StructLayout(LayoutKind.Sequential)]
         public struct MemBlock {
 
             public int size;    // including the header and possibly tiny fragments
@@ -47,15 +58,12 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
 
             public readonly long value;
 
+            [INLINE(256)]
             public MemBlockOffset(void* block, MemZone* zone) {
                 this.value = (byte*)block - (byte*)zone;
             }
 
-            [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-            public readonly MemBlock* Ptr(void* zone) {
-                return (MemBlock*)((byte*)zone + this.value);
-            }
-
+            /*
             [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
             public static bool operator ==(MemBlockOffset a, MemBlockOffset b) => a.value == b.value;
 
@@ -73,10 +81,12 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
             public override int GetHashCode() {
                 return this.value.GetHashCode();
             }
+            */
 
         }
         
         //[BURST(CompileSynchronously = true)]
+        [INLINE(256)]
         public static void ZmClearZone(MemZone* zone) {
             var block = (MemBlock*)((byte*)zone + sizeof(MemZone));
             var blockOffset = new MemBlockOffset(block, zone);
@@ -95,6 +105,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         }
 
         //[BURST(CompileSynchronously = true)]
+        [INLINE(256)]
         public static MemZone* ZmCreateZone(int size) {
             
             size = MemoryAllocator.ZmGetMemBlockSize(size) + TSize<MemZone>.size;
@@ -107,13 +118,14 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         }
 
         //[BURST(CompileSynchronously = true)]
+        [INLINE(256)]
         public static MemZone* ZmReallocZone(MemZone* zone, int newSize) {
             if (zone->size >= newSize) return zone;
 
             var newZone = MemoryAllocator.ZmCreateZone(newSize);
             var extra = newZone->size - zone->size;
 
-            UnsafeUtility.MemCpy(newZone, zone, zone->size);
+            UnsafeUtility.MemMove(newZone, zone, zone->size);
 
             newZone->size = zone->size + extra;
 
@@ -147,11 +159,13 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         }
 
         //[BURST(CompileSynchronously = true)]
+        [INLINE(256)]
         public static void ZmFreeZone(MemZone* zone) {
             UnsafeUtility.Free(zone, Allocator.Persistent);
         }
 
         //[BURST(CompileSynchronously = true)]
+        [INLINE(256)]
         public static bool ZmFree(MemZone* zone, void* ptr) {
             var block = (MemBlock*)((byte*)ptr - TSize<MemBlock>.size);
             var blockOffset = new MemBlockOffset(block, zone);
@@ -159,7 +173,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
             #if MEMORY_ALLOCATOR_BOUNDS_CHECK
             if (block->id != MemoryAllocator.ZONE_ID) {
                 //return false;
-                throw new System.ArgumentException("ZmFree: freed a pointer without ZONEID");
+                throw new System.ArgumentException($"ZmFree: freed a pointer without ZONEID, block->id {block->id}");
             }
             #endif
 
@@ -178,7 +192,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
                 other->next = block->next;
                 other->next.Ptr(zone)->prev = otherOffset;
 
-                if (blockOffset == zone->rover) zone->rover = otherOffset;
+                if (blockOffset.value == zone->rover.value) zone->rover = otherOffset;
 
                 block = other;
                 blockOffset = otherOffset;
@@ -192,18 +206,20 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
                 block->next = other->next;
                 block->next.Ptr(zone)->prev = blockOffset;
 
-                if (otherOffset == zone->rover) zone->rover = blockOffset;
+                if (otherOffset.value == zone->rover.value) zone->rover = blockOffset;
             }
 
             return true;
         }
 
         //[BURST(CompileSynchronously = true)]
+        [INLINE(256)]
         private static int ZmGetMemBlockSize(int size) {
             return ((size + 3) & ~3) + TSize<MemBlock>.size;
         }
 
         //[BURST(CompileSynchronously = true)]
+        [INLINE(256)]
         public static void* ZmMalloc(MemZone* zone, int size) {
             size = MemoryAllocator.ZmGetMemBlockSize(size);
 
@@ -235,8 +251,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
                 } else
                     rover = rover->next.Ptr(zone);
             } while (@base->state != MemoryAllocator.BLOCK_STATE_FREE || @base->size < size);
-
-
+            
             // found a block big enough
             var extra = @base->size - size;
 
@@ -285,7 +300,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
 
             for (var block = zone->blocklist.next.Ptr(zone);; block = block->next.Ptr(zone)) {
 
-                results.Add($"block offset: {(byte*)block - (byte*)@zone}; size: {block->size}; state: {block->state}");
+                results.Add($"block offset: {(byte*)block - (byte*)@zone}; size: {block->size}; state: {block->state}; prev: {block->prev.value}; next: {block->next.value}");
 
                 if (block->next.Ptr(zone) == &zone->blocklist) break;
 
@@ -344,6 +359,11 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
 
             return false;
         }
+        
+        [INLINE(256)]
+        internal static int Align(int size) => ((size + 3) & ~3);
+        [INLINE(256)]
+        internal static long Align(long size) => ((size + 3) & ~3);
 
     }
 

@@ -2,6 +2,7 @@
 //#define MEMORY_ALLOCATOR_LOGS
 
 using System;
+using System.Diagnostics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using INLINE = System.Runtime.CompilerServices.MethodImplAttribute;
@@ -182,14 +183,14 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
                             
                             if (curZone == null) {
                                 curZone = MemoryAllocator.ZmCreateZone(otherZone->size);
-                                UnsafeUtility.MemCpy(curZone, otherZone, otherZone->size);
+                                UnsafeUtility.MemMove(curZone, otherZone, otherZone->size);
                             } else if (otherZone == null) {
                                 MemoryAllocator.ZmFreeZone(curZone);
                                 curZone = null;
                             } else {
                                 // resize zone
                                 curZone = MemoryAllocator.ZmReallocZone(curZone, otherZone->size);
-                                UnsafeUtility.MemCpy(curZone, otherZone, otherZone->size);
+                                UnsafeUtility.MemMove(curZone, otherZone, otherZone->size);
                             }
                         }
                     }
@@ -207,7 +208,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
 
                         if (otherZone != null) {
                             var zone = MemoryAllocator.ZmCreateZone(otherZone->size);
-                            UnsafeUtility.MemCpy(zone, otherZone, otherZone->size);
+                            UnsafeUtility.MemMove(zone, otherZone, otherZone->size);
                             this.AddZone(zone);
                         } else {
                             this.AddZone(null);
@@ -240,13 +241,6 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         [INLINE(256)]
         internal int AddZone(MemZone* zone) {
             
-            for (int i = 0; i < this.zonesListCount; i++) {
-                if (this.zonesList[i] == null) {
-                    this.zonesList[i] = zone;
-                    return i;
-                }
-            }
-
             if (this.zonesListCapacity <= this.zonesListCount) {
                 var capacity = Math.Max(MemoryAllocator.MIN_ZONES_LIST_CAPACITY, this.zonesListCapacity * 2);
                 var list = (MemZone**)UnsafeUtility.Malloc(capacity * sizeof(MemZone*), UnsafeUtility.AlignOf<byte>(), Allocator.Persistent);
@@ -294,6 +288,8 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         [INLINE(256)]
         public MemPtr ReAlloc(MemPtr ptr, int size) {
             
+            size = MemoryAllocator.Align(size);
+            
             if (ptr == MemPtr.Null) return this.Alloc(size);
 
             var blockSize = ((MemBlock*)((byte*)this.GetUnsafePtr(ptr) - TSize<MemBlock>.size))->size;
@@ -330,7 +326,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
             }
             #endif
             
-            UnsafeUtility.MemCpy(this.GetUnsafePtr(dest + destOffset), this.GetUnsafePtr(source + sourceOffset), length);
+            UnsafeUtility.MemMove(this.GetUnsafePtr(dest + destOffset), this.GetUnsafePtr(source + sourceOffset), length);
             
         }
 
@@ -387,7 +383,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         public readonly void* GetUnsafePtr(in MemPtr ptr) {
 
             #if MEMORY_ALLOCATOR_BOUNDS_CHECK
-            if (ptr.zoneId < this.zonesListCount && this.zonesList[ptr.zoneId] != null && this.zonesList[ptr.zoneId]->size < ptr.offset) {
+            if (ptr.zoneId < this.zonesListCount && (this.zonesList[ptr.zoneId] == null || this.zonesList[ptr.zoneId]->size < ptr.offset)) {
                 throw new OutOfBoundsException();
             }
             #endif
@@ -399,7 +395,7 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         internal readonly MemPtr GetSafePtr(void* ptr, int zoneIndex) {
             
             #if MEMORY_ALLOCATOR_BOUNDS_CHECK
-            if (zoneIndex < this.zonesListCount && this.zonesList[zoneIndex] != null) {
+            if (zoneIndex >= this.zonesListCount || this.zonesList[zoneIndex] == null) {
                 throw new OutOfBoundsException();
             }
             #endif
@@ -445,6 +441,46 @@ namespace ME.ECS.Collections.LowLevel.Unsafe {
         public MemPtr AllocArray(int length, int sizeOf) {
             var size = sizeOf;
             return this.Alloc(size * length);
+        }
+        
+        [Conditional("MEMORY_ALLOCATOR_CONSISTENCY_CHECK")]
+        public void CheckConsistency() {
+            string err = null;
+            var result = true;
+            for (int i = 0; i < this.zonesListCount; ++i) {
+                var zone = this.zonesList[i];
+            
+                if (zone == null) continue;
+        
+                for (var block = zone->blocklist.next.Ptr(zone);; block = block->next.Ptr(zone)) {
+                    if (block->next.Ptr(zone) == &zone->blocklist) {
+                        // all blocks have been hit
+                        break;
+                    }
+                    if ((byte*)block + block->size != (byte*)block->next.Ptr(zone)) {
+                        err = "CheckHeap: block size does not touch the next block";
+                        result = false;
+                        break;
+                    }
+                    if (block->next.Ptr(zone)->prev.Ptr(zone) != block) {
+                        err = "CheckHeap: next block doesn't have proper back link";
+                        result = false;
+                        break;
+                    }
+                    if (block->state == MemoryAllocator.BLOCK_STATE_FREE && block->next.Ptr(zone)->state == MemoryAllocator.BLOCK_STATE_FREE) {
+                        err = "CheckHeap: two consecutive free blocks";
+                        result = false;
+                        break;
+                    }
+                }
+
+                if (result == false) break;
+
+            }
+            if (result == false) {
+                throw new Exception(err);
+            }
+    
         }
 
     }

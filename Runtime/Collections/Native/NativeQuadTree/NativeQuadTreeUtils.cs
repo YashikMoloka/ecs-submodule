@@ -1,5 +1,6 @@
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 
 #if FIXED_POINT_MATH
@@ -14,6 +15,12 @@ namespace ME.ECS.Collections {
 
     public static class NativeQuadTreeUtils {
 
+        public static void Construct(in AABB2D mapSize) {
+            
+            NativeQuadTreeUtils<Entity>.Construct(in mapSize);
+
+        }
+
         public static void PrepareTick(in AABB2D mapSize, NativeArray<QuadElement<Entity>> items, int itemsCount) {
             
             NativeQuadTreeUtils<Entity>.PrepareTick(mapSize, items, itemsCount);
@@ -26,13 +33,22 @@ namespace ME.ECS.Collections {
 
         }
 
+        public static void Dispose() {
+
+            NativeQuadTreeUtils<Entity>.Dispose();
+
+        }
+
         public static void GetResults(in float2 position, tfloat radius, Unity.Collections.NativeList<QuadElement<Entity>> results) {
 
             NativeQuadTreeUtils<Entity>.GetResults(position, radius, results);
 
+            var sqRadius = radius * radius;
             for (int i = results.Length - 1; i >= 0; --i) {
 
-                if (results[i].element.IsAlive() == false) {
+                var elem = results[i];
+                if (elem.element.IsAlive() == false ||
+                    math.distancesq(elem.pos, position) > sqRadius) {
                     
                     results.RemoveAtSwapBack(i);
                     
@@ -41,84 +57,101 @@ namespace ME.ECS.Collections {
             }
 
         }
-        
+
+        public static void GetResults(in ME.ECS.Collections.LowLevel.Unsafe.MemoryAllocator allocator, in ME.ECS.FiltersArchetype.FiltersArchetypeStorage storage, in float2 position, tfloat radius, Unity.Collections.NativeList<QuadElement<Entity>> results) {
+
+            NativeQuadTreeUtils<Entity>.GetResults(position, radius, results);
+
+            var sqRadius = radius * radius;
+            for (int i = results.Length - 1; i >= 0; --i) {
+
+                var elem = results[i];
+                if (elem.element.IsAlive(in allocator, in storage) == false ||
+                    math.distancesq(elem.pos, position) > sqRadius) {
+                    
+                    results.RemoveAtSwapBack(i);
+                    
+                }
+                
+            }
+
+        }
+
     }
     
-    public static class NativeQuadTreeUtils<T> where T : unmanaged {
+    public class NativeQuadTreeUtils<T> where T : unmanaged {
 
-        private static NativeQuadTree<T> tempTree;
+        public static readonly SharedStatic<NativeQuadTree<T>> tempTree = SharedStatic<NativeQuadTree<T>>.GetOrCreate<NativeQuadTreeUtils<T>>();
+        //private static readonly NativeQuadTree<T> tempTree;
         private static NativeArray<QuadElement<T>> items;
-        private static int itemsCount;
+        public static int itemsCount;
 
+        public static void Construct(in AABB2D mapSize) {
+            
+            NativeQuadTreeUtils<T>.tempTree.Data = new NativeQuadTree<T>(mapSize, Unity.Collections.Allocator.Persistent, maxDepth: 4);
+
+        }
+        
         public static void PrepareTick(in AABB2D mapSize, NativeArray<QuadElement<T>> items, int itemsCount) {
             
+            if (NativeQuadTreeUtils<T>.tempTree.Data.isCreated == false) {
+                throw new System.Exception("Temp tree collection has been disposed");
+            }
+
             if (itemsCount > items.Length) {
                 itemsCount = items.Length;
                 UnityEngine.Debug.LogWarningFormat("ClearAndBulkInsert: {0} > {1}", itemsCount, items.Length);
             }
 
-            if (NativeQuadTreeUtils<T>.tempTree.isCreated == true) {
-                UnityEngine.Debug.LogError("Temp tree collection must been disposed");
-                NativeQuadTreeUtils<T>.EndTick();
-            }
-
             NativeQuadTreeUtils<T>.items = items;
             NativeQuadTreeUtils<T>.itemsCount = itemsCount;
 
-            /*NativeQuadTreeUtils<T>.tempTree = new NativeQuadTree<T>(mapSize, Unity.Collections.Allocator.TempJob, maxDepth: 4);
-
             new QuadTreeJobs.ClearJob<T>() {
-                quadTree = NativeQuadTreeUtils<T>.tempTree,
+                quadTree = NativeQuadTreeUtils<T>.tempTree.Data,
                 elements = items,
                 elementsCount = itemsCount,
-            }.Execute();*/
+            }.Execute();
 
         }
 
         public static void EndTick() {
             
-            if (NativeQuadTreeUtils<T>.tempTree.isCreated == true) NativeQuadTreeUtils<T>.tempTree.Dispose();
-
         }
 
-        public static void GetResults(in float2 position, tfloat radius, Unity.Collections.NativeList<QuadElement<T>> results) {
+        public static void Dispose() {
+            
+            if (NativeQuadTreeUtils<T>.tempTree.Data.isCreated == true) NativeQuadTreeUtils<T>.tempTree.Data.Dispose();
+            
+        }
 
-            /*if (NativeQuadTreeUtils<T>.tempTree.isCreated == false) {
+        public static unsafe void GetResults(in float2 position, tfloat radius, Unity.Collections.NativeList<QuadElement<T>> results) {
+
+            if (NativeQuadTreeUtils<T>.tempTree.Data.isCreated == false) {
                 throw new System.Exception("Temp tree collection has been disposed");
-            }*/
-
-            var sqRadius = radius * radius;
-            var marker = new Unity.Profiling.ProfilerMarker("GetNearestUnitTarget");
-            marker.Begin();
-            for (int i = 0; i < NativeQuadTreeUtils<T>.itemsCount; ++i) {
-
-                var elem = NativeQuadTreeUtils<T>.items[i];
-                var d = math.distancesq(elem.pos, position);
-                if (d <= sqRadius) {
-                    results.Add(elem);
-                }
-
             }
-            marker.End();
-            /*
+
+            /*var marker = new Unity.Profiling.ProfilerMarker("GetNearestUnitTarget");
+            marker.Begin();
+            results.AddRange(NativeQuadTreeUtils<T>.items.GetUnsafeReadOnlyPtr(), NativeQuadTreeUtils<T>.itemsCount);
+            marker.End();*/
+            
             new QuadTreeJobs.QueryRadiusJob<T>() {
-                quadTree = NativeQuadTreeUtils<T>.tempTree,
+                quadTree = NativeQuadTreeUtils<T>.tempTree.Data,
                 bounds = new AABB2D(position, new float2(radius, radius)),
                 radius = radius,
                 results = results,
             }.Execute();
-            */
-
+            
         }
 
         public static void GetResults(in float2 position, in float2 size, Unity.Collections.NativeList<QuadElement<T>> results) {
 
-            if (NativeQuadTreeUtils<T>.tempTree.isCreated == false) {
+            if (NativeQuadTreeUtils<T>.tempTree.Data.isCreated == false) {
                 throw new System.Exception("Temp tree collection has been disposed");
             }
 
             new QuadTreeJobs.QueryJob<T>() {
-                quadTree = NativeQuadTreeUtils<T>.tempTree,
+                quadTree = NativeQuadTreeUtils<T>.tempTree.Data,
                 bounds = new AABB2D(position, size),
                 results = results,
             }.Execute();

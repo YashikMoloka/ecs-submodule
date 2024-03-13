@@ -119,13 +119,13 @@ namespace ME.ECS {
 
             }
 
-            if (arr.IsCreated == false) arr = new Unity.Collections.NativeArray<T>(index * offset + 1, allocator, Unity.Collections.NativeArrayOptions.UninitializedMemory);
+            if (arr.IsCreated == false) arr = new Unity.Collections.NativeArray<T>(index * offset + 1, allocator, Unity.Collections.NativeArrayOptions.ClearMemory);
             if (index < arr.Length) return false;
 
             var newLength = arr.Length * offset + 1;
             if (newLength == 0 || newLength <= index) newLength = index * offset + 1;
 
-            var newArr = new Unity.Collections.NativeArray<T>(newLength, allocator, Unity.Collections.NativeArrayOptions.UninitializedMemory);
+            var newArr = new Unity.Collections.NativeArray<T>(newLength, allocator, Unity.Collections.NativeArrayOptions.ClearMemory);
             Unity.Collections.NativeArray<T>.Copy(arr, 0, newArr, 0, arr.Length);
             arr.Dispose();
             arr = newArr;
@@ -308,7 +308,7 @@ namespace ME.ECS {
 
             fixed (void* ptr = fromArr) {
                 
-                UnsafeUtility.MemCpy((void*) ((System.IntPtr) arr.GetUnsafeReadOnlyPtr() + destIndex * UnsafeUtility.SizeOf<T>()), (void*) ((System.IntPtr)ptr + sourceIndex * UnsafeUtility.SizeOf<T>()), (long) (length * UnsafeUtility.SizeOf<T>()));
+                UnsafeUtility.MemMove((void*) ((System.IntPtr) arr.GetUnsafeReadOnlyPtr() + destIndex * UnsafeUtility.SizeOf<T>()), (void*) ((System.IntPtr)ptr + sourceIndex * UnsafeUtility.SizeOf<T>()), (long) (length * UnsafeUtility.SizeOf<T>()));
                 
             }
 
@@ -320,7 +320,7 @@ namespace ME.ECS {
         public static unsafe void CopyCast<T, U>(in Unity.Collections.NativeArray<T> src, int srcIndex, U[] dst, int dstIndex, int length) where T : struct {
 
             System.Runtime.InteropServices.GCHandle gcHandle = System.Runtime.InteropServices.GCHandle.Alloc((object) dst, System.Runtime.InteropServices.GCHandleType.Pinned);
-            UnsafeUtility.MemCpy((void*) ((System.IntPtr) (void*) gcHandle.AddrOfPinnedObject() + dstIndex * UnsafeUtility.SizeOf<T>()), (void*) ((System.IntPtr) src.GetUnsafeReadOnlyPtr() + srcIndex * UnsafeUtility.SizeOf<T>()), (long) (length * UnsafeUtility.SizeOf<T>()));
+            UnsafeUtility.MemMove((void*) ((System.IntPtr) (void*) gcHandle.AddrOfPinnedObject() + dstIndex * UnsafeUtility.SizeOf<T>()), (void*) ((System.IntPtr) src.GetUnsafeReadOnlyPtr() + srcIndex * UnsafeUtility.SizeOf<T>()), (long) (length * UnsafeUtility.SizeOf<T>()));
             gcHandle.Free();
 
         }
@@ -371,7 +371,7 @@ namespace ME.ECS {
                 
             }
 
-            UnsafeUtility.MemCpy((void*)to, (void*)from, sizeOf);
+            UnsafeUtility.MemMove((void*)to, (void*)from, sizeOf);
 
         }
 

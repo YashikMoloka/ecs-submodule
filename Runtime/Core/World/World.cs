@@ -23,6 +23,44 @@ namespace ME.ECS {
     using Collections.LowLevel.Unsafe;
     using Collections.LowLevel;
 
+    public struct UseState : System.IDisposable {
+
+        private State useState;
+
+        public UseState(State state) {
+            this.useState = Worlds.current.currentState;
+            if (state != null) {
+                Worlds.current.currentState = state;
+            }
+        }
+
+        public void Dispose() {
+            
+            Worlds.current.currentState = this.useState;
+            
+        }
+
+    }
+
+    public struct WorldStepCustom : System.IDisposable {
+
+        private WorldStep step;
+        
+        public WorldStepCustom(WorldStep customStep) {
+
+            this.step = Worlds.current.GetCurrentStep();
+            Worlds.current.SetCurrentStepCustom(customStep);
+
+        }
+        
+        public void Dispose() {
+            
+            Worlds.current.SetCurrentStepCustom(this.step);
+            
+        }
+
+    }
+
     public enum WorldCallbackStep {
 
         None = 0,
@@ -68,7 +106,11 @@ namespace ME.ECS {
 
     #pragma warning disable
     [System.Serializable]
-    public partial struct WorldViewsSettings { }
+    public partial struct WorldViewsSettings {
+
+        public bool interpolationState;
+
+    }
 
     public enum FrameFixBehaviour {
 
@@ -97,6 +139,7 @@ namespace ME.ECS {
         public bool turnOffViews;
         public FrameFixBehaviour frameFixType;
         public int frameFixValue;
+        public bool updateVisualWhileRollback;
 
         public WorldViewsSettings viewsSettings;
 
@@ -104,6 +147,7 @@ namespace ME.ECS {
             useJobsForSystems = true,
             useJobsForViews = true,
             createInstanceForFeatures = true,
+            updateVisualWhileRollback = true,
             turnOffViews = false,
             frameFixType = FrameFixBehaviour.None,
             viewsSettings = new WorldViewsSettings(),
@@ -200,6 +244,7 @@ namespace ME.ECS {
         private State resetState;
         private bool hasResetState;
         public State currentState;
+        private State interpolationState;
         private uint seed;
         private int cpf; // CPF = Calculations per frame
         internal int entitiesCapacity;
@@ -207,7 +252,14 @@ namespace ME.ECS {
         private bool isLoaded;
         private float loadingProgress;
         private System.Diagnostics.Stopwatch tickTimeWatcher;
+        private System.Diagnostics.Stopwatch simulationTimeWatcher;
         public bool isPaused { private set; get; }
+
+        public System.Action<int> onSimulationLimitReached { get; set; }
+        /**
+         * Returns average frame simulation time in ms
+         */
+        public System.Action<double> onFrameSimulated { get; set; }
 
         void IPoolableSpawn.OnSpawn() {
 
@@ -219,6 +271,7 @@ namespace ME.ECS {
             ME.WeakRef.Reg(this);
 
             this.tickTimeWatcher = new System.Diagnostics.Stopwatch();
+            this.simulationTimeWatcher = new System.Diagnostics.Stopwatch();
             
             this.isPaused = false;
             this.speed = 1f;
@@ -338,6 +391,7 @@ namespace ME.ECS {
             this.simulationToTick = default;
             this.currentState = default;
             this.resetState = default;
+            this.interpolationState = default;
             this.hasResetState = false;
             this.currentStep = default;
             this.checkpointCollector = default;
@@ -584,6 +638,10 @@ namespace ME.ECS {
         public void RecycleResetState<TState>() where TState : State, new() {
 
             if (this.resetState != this.currentState) WorldUtilities.ReleaseState<TState>(ref this.resetState);
+
+            if (this.settings.viewsSettings.interpolationState == true) {
+                WorldUtilities.ReleaseState<TState>(ref this.interpolationState);
+            }
 
         }
 
@@ -1072,6 +1130,21 @@ namespace ME.ECS {
             this.hasResetState = true;
 
             this.currentState.structComponents.Merge(in this.currentState.allocator);
+
+            if (this.settings.viewsSettings.interpolationState == true) {
+                this.interpolationState = WorldUtilities.CreateState<TState>();
+                this.interpolationState.CopyFrom(this.GetState());
+                this.interpolationState.Initialize(this, freeze: true, restore: false);
+            }
+            
+        }
+
+        public void SaveInterpolationState(State state) {
+            
+            if (this.settings.viewsSettings.interpolationState == true) {
+                this.interpolationState.CopyFrom(state);
+                this.interpolationState.Initialize(this, freeze: true, restore: false);
+            }
             
         }
 
@@ -1081,6 +1154,15 @@ namespace ME.ECS {
         public State GetResetState() {
 
             return this.resetState;
+
+        }
+        
+        #if INLINE_METHODS
+        [System.Runtime.CompilerServices.MethodImplAttribute(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        #endif
+        public State GetInterpolationState() {
+
+            return this.interpolationState;
 
         }
 
@@ -1152,6 +1234,10 @@ namespace ME.ECS {
 
             return this.currentStep;
 
+        }
+
+        public void SetCurrentStepCustom(WorldStep step) {
+            this.currentStep = step;
         }
 
         #if INLINE_METHODS
@@ -1241,8 +1327,12 @@ namespace ME.ECS {
         
         public ref Entity AddEntity(string name = null, EntityFlag flags = EntityFlag.None) {
 
+            #if SET_ENTITY_NAME
             var maxLength = Unity.Collections.FixedString64Bytes.UTF8MaxLengthInBytes / sizeof(char);
             var nameBytes = name != null ? new Unity.Collections.FixedString64Bytes(name.Length > maxLength ? name.Substring(0, maxLength) : name) : default;
+            #else
+            Unity.Collections.FixedString64Bytes nameBytes = default;
+            #endif
             return ref this.AddEntity_INTERNAL(nameBytes, flags: flags);
 
         }
@@ -1256,6 +1346,10 @@ namespace ME.ECS {
             ref var entity = ref this.currentState.storage.Alloc(ref this.currentState.allocator);
             if (validate == true) this.UpdateEntityOnCreate(in entity, isNew);
             
+            var marker = new Unity.Profiling.ProfilerMarker("Entities::AddEntity");
+            marker.Begin();
+            
+            #if SET_ENTITY_NAME
             if (name.IsEmpty == false) {
 
                 entity.Set(new ME.ECS.Name.Name() {
@@ -1263,6 +1357,7 @@ namespace ME.ECS {
                 });
 
             }
+            #endif
 
             if ((flags & EntityFlag.OneShot) != 0) {
 
@@ -1270,8 +1365,17 @@ namespace ME.ECS {
 
             }
 
-            this.currentState.storage.flags.Set(in this.currentState.allocator, entity.id, flags);
+            {
+                var markerInner = new Unity.Profiling.ProfilerMarker("Entities::Flags::Set");
+                markerInner.Begin();
 
+                this.currentState.storage.flags.Set(in this.currentState.allocator, entity.id, flags);
+
+                markerInner.End();
+            }
+
+            marker.End();
+            
             return ref entity;
 
         }
@@ -1285,12 +1389,26 @@ namespace ME.ECS {
         internal void UpdateEntityOnCreate(in Entity entity, bool isNew) {
 
             if (isNew == true) {
+            
+                var marker = new Unity.Profiling.ProfilerMarker("Entities::UpdateEntityOnCreate");
+                marker.Begin();
+
                 ComponentsInitializerWorld.Init(in entity);
                 this.currentState.storage.versions.Validate(ref this.currentState.allocator, in entity);
                 this.CreateEntityPlugins(entity, true);
                 this.CreateEntityInFilters(ref this.currentState.allocator, entity);
+                
+                marker.End();
+                
             } else {
+                
+                var marker = new Unity.Profiling.ProfilerMarker("Entities::CreateEntityPlugins");
+                marker.Begin();
+
                 this.CreateEntityPlugins(entity, false);
+
+                marker.End();
+
             }
 
         }
@@ -1828,7 +1946,7 @@ namespace ME.ECS {
 
             deltaTime *= this.speed;
 
-            this.UpdateVisualPost(deltaTime);
+            if (this.settings.updateVisualWhileRollback == true || this.IsReverting() == false) this.UpdateVisualPost(deltaTime);
 
         }
 
@@ -2009,11 +2127,14 @@ namespace ME.ECS {
             UnityEngine.Profiling.Profiler.BeginSample("Tick");
             #endif
             
+            //var rnd = this.currentState.randomState;
+            //var hash = this.currentState.GetHash();
+
             ////////////////
             this.currentStep |= WorldStep.PluginsLogicTick;
             ////////////////
             {
-            
+
                 try {
 
                     using (new Checkpoint("PlayPluginsForTickPre", "PlayPluginsForTickPre", WorldStep.None)) {
@@ -2078,7 +2199,10 @@ namespace ME.ECS {
 
                     }
 
-                    using (new Checkpoint(system.GetType().FullName, system, WorldStep.LogicTick)) {
+                    #if CHECKPOINT_COLLECTOR
+                    using (new Checkpoint(system.GetType().FullName, system, WorldStep.LogicTick))
+                    #endif
+                    {
 
                         system.filter = (system.filter.IsAlive() == true ? system.filter : system.CreateFilter());
                         if (system.filter.IsAlive() == true) {
@@ -2192,6 +2316,10 @@ namespace ME.ECS {
             UnityEngine.Profiling.Profiler.EndSample();
             #endif
             
+            /*using (NoStackTrace.All) {
+                UnityEngine.Debug.Log($"TICK: {this.currentState.tick}, RND: {this.currentState.randomState}, HASH: {this.currentState.GetHash()}, BEGIN RND: {rnd}, BEGIN HASH: {hash}");
+            }*/
+
             #if ENABLE_PROFILER
             ECSProfiler.LogicSystems.Value += (long)((tickSw.ElapsedTicks / (double)System.Diagnostics.Stopwatch.Frequency) * 1000000000L);
             #endif
@@ -2224,6 +2352,8 @@ namespace ME.ECS {
                 return to;
 
             }
+            
+            this.simulationTimeWatcher.Restart();
 
             if (from < Tick.Zero) from = Tick.Zero;
 
@@ -2243,6 +2373,11 @@ namespace ME.ECS {
             }
             
             this.cpf = to - from;
+
+            if (this.cpf > 0 && this.IsReverting() == false) {
+                this.SaveInterpolationState(state);
+            }
+            
             var fixedDeltaTime = this.GetTickTime();
             var frameTime = 0L;
             for (state.tick = from; state.tick < to; ++state.tick) {
@@ -2261,6 +2396,10 @@ namespace ME.ECS {
                     // because we have reached max ms per frame
                     ++state.tick;
                     to = state.tick + 1;
+
+                    var ticksSimulated = state.tick - from;
+                    this.onSimulationLimitReached?.Invoke(ticksSimulated);
+                    
                     break;
 
                 }
@@ -2303,6 +2442,11 @@ namespace ME.ECS {
             ////////////////
             this.currentStep &= ~WorldStep.PluginsLogicSimulate;
             ////////////////
+            
+            this.simulationTimeWatcher.Stop();
+            if (to > from) {
+                this.onFrameSimulated?.Invoke((double)this.simulationTimeWatcher.Elapsed.TotalSeconds / (double)(to - from));
+            }
             
             return to;
 

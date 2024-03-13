@@ -5,6 +5,11 @@ namespace ME.ECS.Collections.LowLevel {
     using INLINE = System.Runtime.CompilerServices.MethodImplAttribute;
 
     public unsafe struct UnsafeMemArraySlicedAllocator {
+        
+        public static readonly Unity.Burst.SharedStatic<int> arrayVersion = Unity.Burst.SharedStatic<int>.GetOrCreate<UnsafeMemArrayAllocator>();
+        
+        [ME.ECS.Serializer.SerializeField]
+        public int version;
 
         internal const int BUCKET_SIZE = 4;
 
@@ -31,6 +36,7 @@ namespace ME.ECS.Collections.LowLevel {
             this.data = new UnsafeMemArrayAllocator(sizeOf, ref allocator, length, options);
             this.tails = default;
             this.tailsLength = 0;
+            this.version = ++UnsafeMemArraySlicedAllocator.arrayVersion.Data;
 
         }
 
@@ -48,13 +54,6 @@ namespace ME.ECS.Collections.LowLevel {
 
             this.tails.Dispose(ref allocator);
             this = default;
-
-        }
-
-        [INLINE(256)]
-        public unsafe void* GetUnsafePtr(in MemoryAllocator allocator) {
-
-            return this.data.GetUnsafePtr(in allocator);
 
         }
 
@@ -77,11 +76,13 @@ namespace ME.ECS.Collections.LowLevel {
                 ref var tail = ref this.tails[in allocator, i];
                 if (tail.isCreated == false) continue;
 
-                allocator.MemCopy(this.data.arrPtr, ptr, tail.arrPtr, 0, tail.Length * elementSize);
+                allocator.MemMove(this.data.arrPtr, ptr, tail.arrPtr, 0, tail.Length * elementSize);
                 ptr += tail.Length * elementSize;
                 tail.Dispose(ref allocator);
 
             }
+            
+            this.version = ++UnsafeMemArraySlicedAllocator.arrayVersion.Data;
 
             this.tails = default;
             this.tailsLength = 0;
@@ -157,6 +158,7 @@ namespace ME.ECS.Collections.LowLevel {
                 tails[in allocator, idx] = newTail;
                 this.tails = tails;
                 this.tailsLength += bucketSize;
+                this.version = ++UnsafeMemArraySlicedAllocator.arrayVersion.Data;
                 result = true;
                 return this;
 
@@ -187,9 +189,13 @@ namespace ME.ECS.Collections.LowLevel {
     }
     
     public struct MemArraySlicedAllocator<T> where T : struct {
+        
+        public static readonly Unity.Burst.SharedStatic<int> arrayVersion = Unity.Burst.SharedStatic<int>.GetOrCreate<MemArraySlicedAllocator<T>>();
 
         [ME.ECS.Serializer.SerializeField]
         public MemArrayAllocator<T> data;
+        [ME.ECS.Serializer.SerializeField]
+        public int version;
         [ME.ECS.Serializer.SerializeField]
         private MemArrayAllocator<MemArrayAllocator<T>> tails;
         [ME.ECS.Serializer.SerializeField]
@@ -211,6 +217,7 @@ namespace ME.ECS.Collections.LowLevel {
             this.data = new MemArrayAllocator<T>(ref allocator, length, options);
             this.tails = default;
             this.tailsLength = 0;
+            this.version = ++MemArraySlicedAllocator<T>.arrayVersion.Data;
 
         }
 
@@ -232,9 +239,15 @@ namespace ME.ECS.Collections.LowLevel {
         }
 
         [INLINE(256)]
-        public unsafe void* GetUnsafePtr(in MemoryAllocator allocator) {
+        public readonly bool HasMerge(in MemoryAllocator allocator) {
+            
+            if (this.tails.isCreated == false || this.tails.Length == 0) {
 
-            return this.data.GetUnsafePtr(in allocator);
+                return false;
+
+            }
+
+            return true;
 
         }
 
@@ -257,7 +270,7 @@ namespace ME.ECS.Collections.LowLevel {
                 ref var tail = ref this.tails[in allocator, i];
                 if (tail.isCreated == false) continue;
 
-                allocator.MemCopy(this.data.arrPtr, ptr, tail.arrPtr, 0, tail.Length * elementSize);
+                allocator.MemMove(this.data.arrPtr, ptr, tail.arrPtr, 0, tail.Length * elementSize);
                 ptr += tail.Length * elementSize;
                 tail.Dispose(ref allocator);
 
@@ -265,18 +278,44 @@ namespace ME.ECS.Collections.LowLevel {
 
             this.tails = default;
             this.tailsLength = 0;
+            this.version = ++MemArraySlicedAllocator<T>.arrayVersion.Data;
             
             return this;
             
         }
 
-        public MemPtr GetAllocPtr(in MemoryAllocator allocator, int index) {
+        [INLINE(256)]
+        public readonly unsafe void* GetUnsafePtr(in MemoryAllocator allocator, int index) {
             
-            var data = this.data;
+            ref readonly var data = ref this.data;
             if (index >= data.Length) {
 
                 // Look into tails
-                var tails = this.tails;
+                ref readonly var tails = ref this.tails;
+                index -= data.Length;
+                for (int i = 0, length = tails.Length; i < length; ++i) {
+
+                    ref var tail = ref tails[in allocator, i];
+                    var len = tail.Length;
+                    if (index < len) return allocator.GetUnsafePtr(tail.GetAllocPtr(in allocator, index));
+                    index -= len;
+
+                }
+
+            }
+
+            return allocator.GetUnsafePtr(data.GetAllocPtr(in allocator, index));
+            
+        }
+
+        [INLINE(256)]
+        public readonly MemPtr GetAllocPtr(in MemoryAllocator allocator, int index) {
+            
+            ref readonly var data = ref this.data;
+            if (index >= data.Length) {
+
+                // Look into tails
+                ref readonly var tails = ref this.tails;
                 index -= data.Length;
                 for (int i = 0, length = tails.Length; i < length; ++i) {
 
@@ -293,14 +332,14 @@ namespace ME.ECS.Collections.LowLevel {
             
         }
 
-        public ref T this[in MemoryAllocator allocator, int index] {
+        public readonly ref T this[in MemoryAllocator allocator, int index] {
             [INLINE(256)]
             get {
-                var data = this.data;
+                ref readonly var data = ref this.data;
                 if (index >= data.Length) {
 
                     // Look into tails
-                    var tails = this.tails;
+                    ref readonly var tails = ref this.tails;
                     index -= data.Length;
                     for (int i = 0, length = tails.Length; i < length; ++i) {
 
@@ -360,6 +399,7 @@ namespace ME.ECS.Collections.LowLevel {
                 tails[in allocator, idx] = newTail;
                 this.tails = tails;
                 this.tailsLength += bucketSize;
+                this.version = ++MemArraySlicedAllocator<T>.arrayVersion.Data;
                 result = true;
                 return this;
 

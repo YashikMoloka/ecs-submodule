@@ -49,13 +49,18 @@ namespace ME.ECS.Serializer {
         
         public void Pack(Packer stream, object obj) {
 
-            Serializer.PackBlittable(stream, (Vector2)obj);
+            var v = (Vector2)obj;
+            Serializer.PackSingle(stream, v.x);
+            Serializer.PackSingle(stream, v.y);
             
         }
         
         public object Unpack(Packer stream) {
 
-            return Serializer.UnpackBlittable<Vector2>(stream);
+            Vector2 res = default;
+            res.x = Serializer.UnpackSingle(stream);
+            res.y = Serializer.UnpackSingle(stream);
+            return res;
             
         }
 
@@ -68,13 +73,20 @@ namespace ME.ECS.Serializer {
         
         public void Pack(Packer stream, object obj) {
 
-            Serializer.PackBlittable(stream, (Vector3)obj);
+            var v = (Vector3)obj;
+            Serializer.PackSingle(stream, v.x);
+            Serializer.PackSingle(stream, v.y);
+            Serializer.PackSingle(stream, v.z);
             
         }
         
         public object Unpack(Packer stream) {
 
-            return Serializer.UnpackBlittable<Vector3>(stream);
+            Vector3 res = default;
+            res.x = Serializer.UnpackSingle(stream);
+            res.y = Serializer.UnpackSingle(stream);
+            res.z = Serializer.UnpackSingle(stream);
+            return res;
             
         }
 
@@ -87,13 +99,22 @@ namespace ME.ECS.Serializer {
         
         public void Pack(Packer stream, object obj) {
 
-            Serializer.PackBlittable(stream, (Vector4)obj);
+            var v = (Vector4)obj;
+            Serializer.PackSingle(stream, v.x);
+            Serializer.PackSingle(stream, v.y);
+            Serializer.PackSingle(stream, v.z);
+            Serializer.PackSingle(stream, v.w);
             
         }
         
         public object Unpack(Packer stream) {
 
-            return Serializer.UnpackBlittable<Vector4>(stream);
+            Vector4 res = default;
+            res.x = Serializer.UnpackSingle(stream);
+            res.y = Serializer.UnpackSingle(stream);
+            res.z = Serializer.UnpackSingle(stream);
+            res.w = Serializer.UnpackSingle(stream);
+            return res;
             
         }
 
@@ -106,14 +127,63 @@ namespace ME.ECS.Serializer {
         
         public void Pack(Packer stream, object obj) {
 
-            Serializer.PackBlittable(stream, (Quaternion)obj);
+            var v = (Quaternion)obj;
+            Serializer.PackSingle(stream, v.x);
+            Serializer.PackSingle(stream, v.y);
+            Serializer.PackSingle(stream, v.z);
+            Serializer.PackSingle(stream, v.w);
             
         }
         
         public object Unpack(Packer stream) {
 
-            return Serializer.UnpackBlittable<Quaternion>(stream);
+            Quaternion res = default;
+            res.x = Serializer.UnpackSingle(stream);
+            res.y = Serializer.UnpackSingle(stream);
+            res.z = Serializer.UnpackSingle(stream);
+            res.w = Serializer.UnpackSingle(stream);
+            return res;
             
+        }
+
+    }
+    
+    public struct BoundsSerializer : ITypeSerializer {
+
+        [INLINE(256)] public byte GetTypeValue() { return (byte)TypeValue.Bounds; }
+        [INLINE(256)] public System.Type GetTypeSerialized() { return typeof(Bounds); }
+        
+        public void Pack(Packer stream, object obj) {
+
+            var v = (Bounds)obj;
+            var center = v.center;
+            Serializer.PackSingle(stream, center.x);
+            Serializer.PackSingle(stream, center.y);
+            Serializer.PackSingle(stream, center.z);
+            var extents = v.extents;
+            Serializer.PackSingle(stream, extents.x);
+            Serializer.PackSingle(stream, extents.y);
+            Serializer.PackSingle(stream, extents.z);
+            
+        }
+        
+        public object Unpack(Packer stream) {
+
+            Bounds res = default;
+            Vector3 center = default;
+            center.x = Serializer.UnpackSingle(stream);
+            center.y = Serializer.UnpackSingle(stream);
+            center.z = Serializer.UnpackSingle(stream);
+            Vector3 extents = default;
+            extents.x = Serializer.UnpackSingle(stream);
+            extents.y = Serializer.UnpackSingle(stream);
+            extents.z = Serializer.UnpackSingle(stream);
+
+            res.center = center;
+            res.extents = extents;
+
+            return res;
+
         }
 
     }

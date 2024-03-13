@@ -50,13 +50,13 @@ namespace ME.ECS.Collections.LowLevel {
 
         #if SPARSESET_DENSE_SLICED
         [ME.ECS.Serializer.SerializeField]
-        private MemArraySlicedAllocator<T> dense;
+        public MemArraySlicedAllocator<T> dense;
         #else
         [ME.ECS.Serializer.SerializeField]
-        private MemArrayAllocator<T> dense;
+        public MemArrayAllocator<T> dense;
         #endif
         [ME.ECS.Serializer.SerializeField]
-        private MemArrayAllocator<int> sparse;
+        public MemArrayAllocator<int> sparse;
         [ME.ECS.Serializer.SerializeField]
         private Stack<int> freeIndexes;
 
@@ -73,15 +73,17 @@ namespace ME.ECS.Collections.LowLevel {
 
         }
 
+        #if !SPARSESET_DENSE_SLICED
         [INLINE(256)]
         public unsafe SparseSetData GetData(in MemoryAllocator allocator) {
-
+        
             return new SparseSetData() {
                 densePtr = this.dense.GetUnsafePtr(in allocator),
                 sparse = this.sparse,
             };
-
+        
         }
+        #endif
 
         [INLINE(256)]
         public T ReadDense(in MemoryAllocator allocator, int sparseIndex) {
@@ -104,16 +106,43 @@ namespace ME.ECS.Collections.LowLevel {
 
         }
 
+        #if SPARSESET_DENSE_SLICED
+        [INLINE(256)]
+        public MemArraySlicedAllocator<T> GetDense() {
+
+            return this.dense;
+
+        }
+        #else
+        [INLINE(256)]
+        public MemArrayAllocator<T> GetDense() {
+
+            return this.dense;
+
+        }
+        #endif
+
         [INLINE(256)]
         public SparseSet<T> Merge(ref MemoryAllocator allocator) {
 
-#if SPARSESET_DENSE_SLICED
+            #if SPARSESET_DENSE_SLICED
             this.dense = this.dense.Merge(ref allocator);
-#endif
+            #endif
             return this;
 
         }
-        
+
+        [INLINE(256)]
+        public readonly bool HasMerge(in MemoryAllocator allocator) {
+
+            #if SPARSESET_DENSE_SLICED
+            return this.dense.HasMerge(in allocator);
+            #else
+            return false;
+            #endif
+
+        }
+
         [INLINE(256)]
         public void Validate(ref MemoryAllocator allocator, int capacity) {
 
@@ -149,15 +178,16 @@ namespace ME.ECS.Collections.LowLevel {
                 if (this.freeIndexes.Count > 0) {
                     idx = this.freeIndexes.Pop(in allocator);
                 } else {
-                    idx = this.dense.Length + 1;
+                    idx = this.dense.Length;
+                    if (idx == 0) idx = 1;
                 }
             }
 
-#if SPARSESET_DENSE_SLICED
+            #if SPARSESET_DENSE_SLICED
             this.dense.Resize(ref allocator, idx + 1, out _);
-#else
+            #else
             this.dense.Resize(ref allocator, idx + 1);
-#endif
+            #endif
             this.dense[in allocator, idx] = data;
             return idx;
 
@@ -173,11 +203,11 @@ namespace ME.ECS.Collections.LowLevel {
         }
 
         [INLINE(256)]
-        public readonly ref T Read(in MemoryAllocator allocator, int entityId) {
+        public readonly unsafe ref readonly T Read(in MemoryAllocator allocator, int entityId) {
 
             var idx = this.sparse[in allocator, entityId];
             if (idx == 0) return ref defaultRef;
-            return ref this.dense[in allocator, idx];
+            return ref UnsafeUtility.AsRef<T>(this.dense.GetUnsafePtr(in allocator, idx));
 
         }
 
