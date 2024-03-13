@@ -5,17 +5,17 @@ using ME.ECS;
 
 namespace ME.ECSEditor {
 
-    [UnityEditor.CustomEditor(typeof(MonoBehaviourViewBase), editorForChildClasses: true)]
-    [CanEditMultipleObjects]
-    public class MonoBehaviourViewBaseEditor : ViewBaseEditor {
-
-        public override void OnInspectorGUI() {
-            
-            this.DrawInspectorGUI(((MonoBehaviourView)this.target).entity, drawDefaultInspector: true);
-            
-        }
-
-    }
+    // [UnityEditor.CustomEditor(typeof(MonoBehaviourViewBase), editorForChildClasses: true)]
+    // [CanEditMultipleObjects]
+    // public class MonoBehaviourViewBaseEditor : ViewBaseEditor {
+    //
+    //     public override void OnInspectorGUI() {
+    //         
+    //         this.DrawInspectorGUI(((MonoBehaviourView)this.target).entity, drawDefaultInspector: true);
+    //         
+    //     }
+    //
+    // }
 
     [ViewProviderCustomEditor(typeof(UnityGameObjectProvider))]
     public class UnityGameObjectProviderEditor : IDebugViewGUIEditor<InitializerBase> {

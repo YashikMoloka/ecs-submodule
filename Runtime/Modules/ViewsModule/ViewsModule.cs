@@ -299,7 +299,7 @@ namespace ME.ECS.Views {
 
     using ME.ECS.Collections;
 
-    internal interface IViewBaseInternal {
+    public interface IViewBaseInternal {
 
         void Setup(World world, ViewInfo viewInfo);
 
